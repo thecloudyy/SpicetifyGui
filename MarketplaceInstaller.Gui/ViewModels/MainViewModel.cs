@@ -33,7 +33,6 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private string _systemStatus = "Checking…";
     [ObservableProperty] private bool _isInstalled;
-    [ObservableProperty] private bool _statusKnown;
     [ObservableProperty] private string _installedTag = "";
     [ObservableProperty] private string _statusMessage = "Checking…";
     [ObservableProperty] private SymbolRegular _statusIcon = SymbolRegular.Info24;
@@ -53,30 +52,15 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<StepItem> Steps { get; } = new();
     public ObservableCollection<FileStatusItem> FileRows { get; } = new();
 
-    public string InstalledLabel
-    {
-        get
-        {
-            if (!StatusKnown) return "Checking…";
-            if (!IsInstalled) return "Not installed";
-            return InstalledTag == "" ? "Installed" : InstalledTag;
-        }
-    }
     public string AppVersion => "v" + MarketplacePaths.Version;
     public string InstallUninstallText => IsInstalled ? "Uninstall" : "Install";
     public string FilesPillText => InstalledTag == "" ? "Installed" : InstalledTag;
 
     private bool CanRun() => !IsBusy;
 
-    partial void OnInstalledTagChanged(string value)
-    {
-        OnPropertyChanged(nameof(InstalledLabel));
-        OnPropertyChanged(nameof(FilesPillText));
-    }
-    partial void OnStatusKnownChanged(bool value) => OnPropertyChanged(nameof(InstalledLabel));
+    partial void OnInstalledTagChanged(string value) => OnPropertyChanged(nameof(FilesPillText));
     partial void OnIsInstalledChanged(bool value)
     {
-        OnPropertyChanged(nameof(InstalledLabel));
         OnPropertyChanged(nameof(InstallUninstallText));
         OnPropertyChanged(nameof(FilesPillText));
     }
@@ -201,7 +185,6 @@ public partial class MainViewModel : ObservableObject
             _spicetifyOk = ok;
             IsInstalled = present;
             InstalledTag = local != null ? "v" + local : "";
-            StatusKnown = true;
             RefreshFileRows(present, local, latest);
 
             if (!ok)
@@ -209,16 +192,9 @@ public partial class MainViewModel : ObservableObject
                 SystemStatus = "Spicetify missing";
                 StatusMessage = "Spicetify not found.";
             }
-            else if (IsInstalled)
-            {
-                SystemStatus = InstalledTag == ""
-                    ? $"Spicetify {version} · installed"
-                    : $"Spicetify {version} · {InstalledTag}";
-                StatusMessage = "Ready.";
-            }
             else
             {
-                SystemStatus = $"Spicetify {version} · not installed";
+                SystemStatus = $"Spicetify {version}";
                 StatusMessage = "Ready.";
             }
         }
