@@ -303,7 +303,7 @@ public partial class MainViewModel : ObservableObject
             var info = await _selfUpdater.GetLatestWithAssetAsync(_selfUpdateCts.Token);
             if (info == null)
             {
-                SelfUpdateStatus = "No release found.";
+                SelfUpdateStatus = "No setup file published yet.";
                 return;
             }
             SelfUpdateStatus = $"Downloading {info.FileName}…";

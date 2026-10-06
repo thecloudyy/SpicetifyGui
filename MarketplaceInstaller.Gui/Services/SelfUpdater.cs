@@ -91,14 +91,38 @@ internal sealed class SelfUpdater
             fileName, fileUrl, fileSize, fileDigest);
     }
 
+    private static string RateLimitSuffix(HttpResponseMessage res)
+    {
+        try
+        {
+            if (res.Headers.TryGetValues("x-ratelimit-reset", out var vals) &&
+                long.TryParse(System.Linq.Enumerable.FirstOrDefault(vals), out long unix))
+            {
+                var t = DateTimeOffset.FromUnixTimeSeconds(unix).ToLocalTime();
+                return $" Limit resets at {t:HH:mm}.";
+            }
+        }
+        catch { }
+        return "";
+    }
+
     /// <summary>Newest release carrying the setup exe asset.</summary>
     public async Task<SelfUpdateInfo?> GetLatestWithAssetAsync(CancellationToken ct = default)
     {
+        const int perPage = 20;
         for (int page = 1; page <= 3; page++)
         {
             using var res = await _api.GetAsync(
-                $"https://api.github.com/repos/{Owner}/{Repo}/releases?per_page=20&page={page}", ct);
-            if (!res.IsSuccessStatusCode) return null;
+                $"https://api.github.com/repos/{Owner}/{Repo}/releases?per_page={perPage}&page={page}", ct);
+            if (!res.IsSuccessStatusCode)
+            {
+                int code = (int)res.StatusCode;
+                if (code is 403 or 429)
+                    throw new HttpRequestException(
+                        "GitHub API rate limit exceeded." + RateLimitSuffix(res));
+                throw new HttpRequestException(
+                    $"GitHub API returned {code} {res.ReasonPhrase}.");
+            }
 
             using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync(ct));
             if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
@@ -108,6 +132,7 @@ internal sealed class SelfUpdater
                 var info = InfoFromRelease(root);
                 if (info != null) return info;
             }
+            if (doc.RootElement.GetArrayLength() < perPage) return null;
         }
         return null;
     }
