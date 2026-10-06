@@ -12,6 +12,33 @@
             </ResourceDictionary.MergedDictionaries>
             <BooleanToVisibilityConverter x:Key="BoolToVis" />
             <local:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
+
+            <!-- Stock WPF ProgressBar renders square corners; PART_Track/PART_Indicator
+                 are the template parts ProgressBar sizes itself. -->
+            <ControlTemplate x:Key="RoundProgress" TargetType="{x:Type ProgressBar}">
+                <Grid>
+                    <Border x:Name="PART_Track" CornerRadius="3" Background="#3a3a3a" />
+                    <Border x:Name="PART_Indicator" HorizontalAlignment="Left" CornerRadius="3"
+                            Background="#4cc2ff" />
+                </Grid>
+                <ControlTemplate.Triggers>
+                    <!-- The theme template carried WPF's indeterminate animation; pulse instead. -->
+                    <Trigger Property="IsIndeterminate" Value="True">
+                        <Trigger.EnterActions>
+                            <BeginStoryboard x:Name="IndeterminatePulse">
+                                <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                    <DoubleAnimation Storyboard.TargetName="PART_Indicator"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0.35" Duration="0:0:0.55" />
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </Trigger.EnterActions>
+                        <Trigger.ExitActions>
+                            <StopStoryboard BeginStoryboardName="IndeterminatePulse" />
+                        </Trigger.ExitActions>
+                    </Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

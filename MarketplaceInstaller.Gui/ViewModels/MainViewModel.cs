@@ -33,7 +33,9 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private string _systemStatus = "Checking…";
     [ObservableProperty] private bool _isInstalled;
+    [ObservableProperty] private bool _statusKnown;
     [ObservableProperty] private string _installedTag = "";
+    [ObservableProperty] private string _marketplaceVersion = "";
     [ObservableProperty] private string _statusMessage = "Checking…";
     [ObservableProperty] private SymbolRegular _statusIcon = SymbolRegular.Info24;
     [ObservableProperty] private Brush _statusIconColor = new SolidColorBrush(Color.FromRgb(0x7c, 0x85, 0x93));
@@ -53,14 +55,35 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<FileStatusItem> FileRows { get; } = new();
 
     public string AppVersion => "v" + MarketplacePaths.Version;
+    public string InstalledLabel
+    {
+        get
+        {
+            if (!StatusKnown) return "Checking…";
+            if (!IsInstalled) return "Not installed";
+            return InstalledTag == "" ? "Installed" : InstalledTag;
+        }
+    }
     public string InstallUninstallText => IsInstalled ? "Uninstall" : "Install";
     public string FilesPillText => InstalledTag == "" ? "Installed" : InstalledTag;
 
+    /// <summary>Latest spicetify/marketplace release tag, e.g. "v1.0.11 (marketplace: version)".</summary>
+    public string MarketplaceVersionLabel =>
+        (MarketplaceVersion == "" ? "…" : "v" + MarketplaceVersion) + " (marketplace: version)";
+
+    partial void OnMarketplaceVersionChanged(string value) => OnPropertyChanged(nameof(MarketplaceVersionLabel));
+
     private bool CanRun() => !IsBusy;
 
-    partial void OnInstalledTagChanged(string value) => OnPropertyChanged(nameof(FilesPillText));
+    partial void OnInstalledTagChanged(string value)
+    {
+        OnPropertyChanged(nameof(InstalledLabel));
+        OnPropertyChanged(nameof(FilesPillText));
+    }
+    partial void OnStatusKnownChanged(bool value) => OnPropertyChanged(nameof(InstalledLabel));
     partial void OnIsInstalledChanged(bool value)
     {
+        OnPropertyChanged(nameof(InstalledLabel));
         OnPropertyChanged(nameof(InstallUninstallText));
         OnPropertyChanged(nameof(FilesPillText));
     }
@@ -185,6 +208,7 @@ public partial class MainViewModel : ObservableObject
             _spicetifyOk = ok;
             IsInstalled = present;
             InstalledTag = local != null ? "v" + local : "";
+            MarketplaceVersion = latest ?? "";
             RefreshFileRows(present, local, latest);
 
             if (!ok)
@@ -194,7 +218,10 @@ public partial class MainViewModel : ObservableObject
             }
             else
             {
-                SystemStatus = $"Spicetify {version}";
+                // Header tag, same shape and wording as the marketplace tag.
+                SystemStatus = version is "" or "unknown"
+                    ? "Spicetify version unknown"
+                    : $"v{version} (spicetify: version)";
                 StatusMessage = "Ready.";
             }
         }
@@ -324,8 +351,8 @@ public partial class MainViewModel : ObservableObject
             SelfUpdateStatus = $"Downloading {info.FileName}…";
             var prog = new Progress<double>(v => SelfUpdateProgress = v * 100);
             string dir = await _selfUpdater.DownloadAsync(info, prog, _selfUpdateCts.Token);
-            SelfUpdateStatus = "Restarting to apply…";
-            SelfUpdater.InstallAndRestart(dir, info.FileName);
+            SelfUpdateStatus = "Launching setup…";
+            SelfUpdater.RunSetupAndExit(Path.Combine(dir, info.FileName));
             Application.Current.Shutdown();
         }
         catch (OperationCanceledException)

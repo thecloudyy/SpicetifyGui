@@ -17,11 +17,12 @@ internal sealed record SelfUpdateInfo(
     string FileDigest);
 
 /// <summary>
-/// Self-update service for SpicetifyGui. The app is always v1.0.0 — there is
-/// no version comparison. Reinstall grabs the newest release in
-/// thecloudyy/SpicetifyGui carrying a SpicetifyGui-Setup-*-win-x64.exe asset
-/// plus a matching .sha256 file, verifies it, swaps it in over SpicetifyGui.exe
-/// and restarts.
+/// Self-update service for SpicetifyGui — Element's reinstall method, ported from
+/// Element's AppUpdateService. The app keeps its own version pinned, so there is no
+/// version comparison: Reinstall takes releases/latest in thecloudyy/SpicetifyGui,
+/// downloads the SpicetifyGui-Setup-*-win-x64.exe asset to %TEMP%, verifies it against
+/// the release asset's advertised sha256 digest, then launches it /SILENT and exits —
+/// the installer closes this instance (CloseApplications) and relaunches it when done.
 /// </summary>
 internal sealed class SelfUpdater
 {
@@ -106,35 +107,24 @@ internal sealed class SelfUpdater
         return "";
     }
 
-    /// <summary>Newest release carrying the setup exe asset.</summary>
+    /// <summary>Live latest release, if it carries the setup exe asset.</summary>
     public async Task<SelfUpdateInfo?> GetLatestWithAssetAsync(CancellationToken ct = default)
     {
-        const int perPage = 20;
-        for (int page = 1; page <= 3; page++)
+        using var res = await _api.GetAsync(
+            $"https://api.github.com/repos/{Owner}/{Repo}/releases/latest", ct);
+        if (!res.IsSuccessStatusCode)
         {
-            using var res = await _api.GetAsync(
-                $"https://api.github.com/repos/{Owner}/{Repo}/releases?per_page={perPage}&page={page}", ct);
-            if (!res.IsSuccessStatusCode)
-            {
-                int code = (int)res.StatusCode;
-                if (code is 403 or 429)
-                    throw new HttpRequestException(
-                        "GitHub API rate limit exceeded." + RateLimitSuffix(res));
+            if ((int)res.StatusCode == 404) return null; // no release published
+            int code = (int)res.StatusCode;
+            if (code is 403 or 429)
                 throw new HttpRequestException(
-                    $"GitHub API returned {code} {res.ReasonPhrase}.");
-            }
-
-            using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync(ct));
-            if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
-                return null;
-            foreach (var root in doc.RootElement.EnumerateArray())
-            {
-                var info = InfoFromRelease(root);
-                if (info != null) return info;
-            }
-            if (doc.RootElement.GetArrayLength() < perPage) return null;
+                    "GitHub API rate limit exceeded." + RateLimitSuffix(res));
+            throw new HttpRequestException(
+                $"GitHub API returned {code} {res.ReasonPhrase}.");
         }
-        return null;
+
+        using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync(ct));
+        return InfoFromRelease(doc.RootElement);
     }
 
     private static async Task DownloadFileAsync(string url, string dest, long size,
@@ -156,24 +146,16 @@ internal sealed class SelfUpdater
         }
     }
 
-    private static string ParseChecksum(string text)
+    /// <summary>
+    /// True when the file matches the asset's advertised sha256 digest, and also when
+    /// the asset advertises none — an older release without one is not treated as
+    /// corrupt (same semantics as Element's AssetHash.Matches).
+    /// </summary>
+    private static bool DigestMatches(string path, string assetDigest)
     {
-        foreach (string rawLine in text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
-        {
-            string line = rawLine.Trim();
-            if (line.Length == 0 || line.StartsWith("#")) continue;
-            string token = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries)[0].Trim('*', ' ', '\t');
-            if (token.Length == 64)
-            {
-                bool hex = true;
-                foreach (char c in token)
-                {
-                    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) { hex = false; break; }
-                }
-                if (hex) return token.ToLowerInvariant();
-            }
-        }
-        throw new InvalidDataException("No SHA-256 hash found in checksum file.");
+        if (string.IsNullOrWhiteSpace(assetDigest)) return true; // nothing to check against
+        return string.Equals(Sha256File(path), assetDigest.Trim(),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private static string Sha256File(string path)
@@ -182,53 +164,34 @@ internal sealed class SelfUpdater
         return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
     }
 
+    /// <summary>
+    /// Downloads the setup exe to %TEMP% (reusing the path Element uses) and verifies
+    /// it against the release asset's advertised digest. A mismatch deletes the file
+    /// and fails.
+    /// </summary>
     public async Task<string> DownloadAsync(SelfUpdateInfo update, IProgress<double> progress, CancellationToken ct = default)
     {
-        string dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "SpicetifyGui", "updates");
-        Directory.CreateDirectory(dir);
-        foreach (string f in Directory.GetFiles(dir)) File.Delete(f);
-
+        string dir = Path.GetTempPath();
         string exePath = Path.Combine(dir, update.FileName);
+        try { if (File.Exists(exePath)) File.Delete(exePath); } catch { /* overwritten below */ }
+
         await DownloadFileAsync(update.FileUrl, exePath, update.FileSize, progress, ct);
 
-        using var res = await _dl.GetAsync(update.FileUrl + ".sha256", ct);
-        res.EnsureSuccessStatusCode();
-        string setupSum = ParseChecksum(await res.Content.ReadAsStringAsync(ct));
-        if (!string.Equals(Sha256File(exePath), setupSum, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Download check failed for " + update.FileName + ". Deleted nothing.");
-        if (update.FileDigest != "" && !string.Equals(Sha256File(exePath), update.FileDigest, StringComparison.OrdinalIgnoreCase))
+        if (!DigestMatches(exePath, update.FileDigest))
+        {
+            try { File.Delete(exePath); } catch { /* best effort */ }
             throw new InvalidDataException("Download does not match the release checksum for " + update.FileName + ".");
+        }
         progress?.Report(1.0);
         return dir;
     }
 
-    public static void InstallAndRestart(string dir, string assetName)
+    /// <summary>
+    /// Launches the setup silently and returns. The installer closes this
+    /// instance (CloseApplications) and relaunches the app when done.
+    /// </summary>
+    public static void RunSetupAndExit(string setupPath)
     {
-        string appDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
-        int pid = Environment.ProcessId;
-        string script = Path.Combine(dir, "update.cmd");
-
-        string bat =
-            "@echo off\r\n" +
-            $"set \"UPD={dir}\"\r\n" +
-            $"set \"APPDIR={appDir}\"\r\n" +
-            $"set \"NEW={assetName}\"\r\n" +
-            ":wait\r\ntasklist /FI \"PID eq {pid}\" 2>NUL | find \"{pid}\" >NUL\r\n" +
-            "if %errorlevel%==0 ( timeout /t 1 /nobreak >NUL & goto wait )\r\n" +
-            $"move /y \"%UPD%\\%NEW%\" \"%APPDIR%\\{ExeName}\"\r\n" +
-            $"start \"\" \"%APPDIR%\\{ExeName}\"\r\n" +
-            "rd /s /q \"%UPD%\"\r\n" +
-            "(goto) 2>nul & del \"%~f0\"\r\n";
-        File.WriteAllText(script, bat);
-
-        Process.Start(new ProcessStartInfo
-        {
-            FileName = script,
-            UseShellExecute = true,
-            WindowStyle = ProcessWindowStyle.Hidden,
-            WorkingDirectory = appDir,
-        });
+        Process.Start(new ProcessStartInfo(setupPath, "/SILENT") { UseShellExecute = true });
     }
 }
