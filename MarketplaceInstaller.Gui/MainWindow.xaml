@@ -95,7 +95,7 @@
                     </StackPanel>
                     <StackPanel Margin="0,12,0,0" Orientation="Horizontal">
                         <ui:Button MinWidth="120" HorizontalContentAlignment="Center" Appearance="Primary"
-                                   Command="{Binding ReinstallAppCommand}" Content="{Binding AppUpdateText}"
+                                   Command="{Binding ReinstallAppCommand}" Content="Reinstall"
                                    Icon="{ui:SymbolIcon ArrowDownload24}" IsEnabled="{Binding CanSelfUpdate}" />
                     </StackPanel>
                     <ProgressBar Height="6" Margin="0,12,0,0" Maximum="100"

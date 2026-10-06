@@ -1,6 +1,12 @@
 bin/
 obj/
 .vs/
+publish-single/
+release-asset/
+SpicetifyGui-Setup-*.exe
+SpicetifyGui-Setup-*.exe.sha256
+SpicetifyGui-win-x64.zip
+SpicetifyGui-win-x64.zip.sha256
 *.user
 *.suo
 *.py

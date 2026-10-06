@@ -6,9 +6,9 @@ applies it with `spicetify apply`, and restarts Spotify if it was open.
 
 ## Download
 
-Grab `SpicetifyGui-win-x64.zip` from
-[GitHub Releases](https://github.com/thecloudyy/SpicetifyGui/releases/latest),
-extract it anywhere, and run `SpicetifyGui.exe`.
+Grab `SpicetifyGui-Setup-vX.Y.Z-win-x64.exe` from
+[GitHub Releases](https://github.com/thecloudyy/SpicetifyGui/releases/latest)
+and run it. It is a single file.
 
 Requires the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
 
@@ -17,8 +17,8 @@ Requires the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dot
 - Auto-detects Spicetify and the installed Marketplace version (no folder picking).
 - Install / Update / Uninstall with backup + restore on failure.
 - File status card: per-file presence plus release freshness (up to date / update available).
-- Self-update: the App card reinstalls the latest `SpicetifyGui-win-x64.zip`
-  release (SHA-256 verified) and restarts itself.
+- Self-update: the App card reinstalls the latest
+  `SpicetifyGui-Setup-*-win-x64.exe` release (SHA-256 verified) and restarts itself.
 - Never leaves Spotify running unless it was open before the update.
 
 ## Build from source
@@ -29,13 +29,13 @@ dotnet build MarketplaceInstaller.slnx -c Release
 
 ## Release a new version
 
-1. Bump `<Version>` in both `.csproj` files and `MarketplacePaths.Version`.
-2. Rebuild Release, then package + publish:
+1. Keep `<Version>` at `1.0.0` in both `.csproj` files and `MarketplacePaths.Version`.
+2. Rebuild, publish the single file, then publish it:
 
 ```
-$out = "MarketplaceInstaller.Gui/bin/Release/net10.0-windows"
-Compress-Archive -Path "$out/*" -DestinationPath SpicetifyGui-win-x64.zip -Force
-$hash = (Get-FileHash -Algorithm SHA256 SpicetifyGui-win-x64.zip).Hash.ToLower()
-"$hash  SpicetifyGui-win-x64.zip" | Out-File SpicetifyGui-win-x64.zip.sha256 -Encoding ascii
-gh release create vX.Y.Z --title "vX.Y.Z" --notes "..." SpicetifyGui-win-x64.zip SpicetifyGui-win-x64.zip.sha256
+dotnet publish MarketplaceInstaller.Gui/MarketplaceInstaller.Gui.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish-single
+Copy-Item publish-single/SpicetifyGui.exe SpicetifyGui-Setup-v1.0.0-win-x64.exe -Force
+$hash = (Get-FileHash -Algorithm SHA256 SpicetifyGui-Setup-v1.0.0-win-x64.exe).Hash.ToLower()
+"$hash  SpicetifyGui-Setup-v1.0.0-win-x64.exe" | Out-File SpicetifyGui-Setup-v1.0.0-win-x64.exe.sha256 -Encoding ascii
+gh release create v1.0.0 --title "v1.0.0" --notes "..." SpicetifyGui-Setup-v1.0.0-win-x64.exe SpicetifyGui-Setup-v1.0.0-win-x64.exe.sha256
 ```

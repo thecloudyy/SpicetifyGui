@@ -41,7 +41,6 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private double _progress;
     [ObservableProperty] private bool _isProgressIndeterminate;
     [ObservableProperty] private bool _isBusy;
-    [ObservableProperty] private string _appUpdateText = "Reinstall";
     [ObservableProperty] private bool _isSelfUpdating;
     [ObservableProperty] private double _selfUpdateProgress;
     [ObservableProperty] private string _selfUpdateStatus = "";
@@ -88,18 +87,6 @@ public partial class MainViewModel : ObservableObject
     {
         ResetSteps("install");
         await AutoDetectAsync();
-        await CheckAppUpdateSilentAsync();
-    }
-
-    private async Task CheckAppUpdateSilentAsync()
-    {
-        try
-        {
-            var info = await _selfUpdater.CheckForUpdatesAsync();
-            if (info != null)
-                AppUpdateText = $"Update to v{info.Version}";
-        }
-        catch { }
     }
 
     private void ResetSteps(string mode)
@@ -319,11 +306,11 @@ public partial class MainViewModel : ObservableObject
                 SelfUpdateStatus = "No release found.";
                 return;
             }
-            SelfUpdateStatus = $"Downloading {info.ZipName}…";
+            SelfUpdateStatus = $"Downloading {info.FileName}…";
             var prog = new Progress<double>(v => SelfUpdateProgress = v * 100);
             string dir = await _selfUpdater.DownloadAsync(info, prog, _selfUpdateCts.Token);
             SelfUpdateStatus = "Restarting to apply…";
-            SelfUpdater.InstallAndRestart(dir, info.ZipName);
+            SelfUpdater.InstallAndRestart(dir, info.FileName);
             Application.Current.Shutdown();
         }
         catch (OperationCanceledException)

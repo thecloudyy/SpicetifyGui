@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 
@@ -12,24 +11,25 @@ internal sealed record SelfUpdateInfo(
     string Version,
     string Name,
     string Notes,
-    string ZipName,
-    string ZipUrl,
-    long ZipSize,
-    string ZipDigest);
+    string FileName,
+    string FileUrl,
+    long FileSize,
+    string FileDigest);
 
 /// <summary>
-/// Self-update service for SpicetifyGui. Looks for releases in
-/// thecloudyy/SpicetifyGui carrying a SpicetifyGui-win-x64.zip asset plus a
-/// matching .sha256 file, verifies the download, then swaps it in over the
-/// app folder and restarts.
+/// Self-update service for SpicetifyGui. The app is always v1.0.0 — there is
+/// no version comparison. Reinstall grabs the newest release in
+/// thecloudyy/SpicetifyGui carrying a SpicetifyGui-Setup-*-win-x64.exe asset
+/// plus a matching .sha256 file, verifies it, swaps it in over SpicetifyGui.exe
+/// and restarts.
 /// </summary>
 internal sealed class SelfUpdater
 {
     public const string Owner = "thecloudyy";
     public const string Repo = "SpicetifyGui";
     public const string ExeName = "SpicetifyGui.exe";
-    private const string AssetPrefix = "SpicetifyGui-";
-    private const string AssetSuffix = "-win-x64.zip";
+    private const string AssetPrefix = "SpicetifyGui-Setup-";
+    private const string AssetSuffix = "-win-x64.exe";
 
     private static readonly HttpClient _api = new() { Timeout = TimeSpan.FromSeconds(20) };
     private static readonly HttpClient _dl = new() { Timeout = Timeout.InfiniteTimeSpan };
@@ -41,18 +41,6 @@ internal sealed class SelfUpdater
         _dl.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("SpicetifyGui", "1.0"));
     }
 
-    public static Version CurrentVersion
-    {
-        get
-        {
-            var v = Assembly.GetEntryAssembly()?.GetName().Version;
-            return Normalize(v ?? new Version(1, 0, 0));
-        }
-    }
-
-    internal static Version Normalize(Version v) =>
-        new(Math.Max(v.Major, 0), Math.Max(v.Minor, 0), Math.Max(v.Build, 0));
-
     internal static bool TryParseTag(string tag, out Version version)
     {
         version = new Version(1, 0, 0);
@@ -60,7 +48,7 @@ internal sealed class SelfUpdater
         string t = tag.Trim().TrimStart('v', 'V').Split('-', '+')[0];
         if (Version.TryParse(t, out var v))
         {
-            version = Normalize(v);
+            version = new Version(Math.Max(v.Major, 0), Math.Max(v.Minor, 0), Math.Max(v.Build, 0));
             return true;
         }
         return false;
@@ -73,8 +61,8 @@ internal sealed class SelfUpdater
         if (!TryParseTag(tagEl.GetString() ?? "", out var version)) return null;
         if (!root.TryGetProperty("assets", out var assets)) return null;
 
-        string zipName = "", zipUrl = "", zipDigest = "";
-        long zipSize = 0;
+        string fileName = "", fileUrl = "", fileDigest = "";
+        long fileSize = 0;
         foreach (var a in assets.EnumerateArray())
         {
             string name = a.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
@@ -90,20 +78,21 @@ internal sealed class SelfUpdater
                 if (raw.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
                     digest = raw.Substring(7).ToLowerInvariant();
             }
-            zipName = name;
-            zipUrl = url;
-            zipSize = size;
-            zipDigest = digest;
+            fileName = name;
+            fileUrl = url;
+            fileSize = size;
+            fileDigest = digest;
         }
-        if (zipUrl == "") return null;
+        if (fileUrl == "") return null;
 
         string relName = root.TryGetProperty("name", out var rn) ? rn.GetString() ?? "" : "";
         string notes = root.TryGetProperty("body", out var rb) ? rb.GetString() ?? "" : "";
         return new SelfUpdateInfo(version.ToString(), relName, notes,
-            zipName, zipUrl, zipSize, zipDigest);
+            fileName, fileUrl, fileSize, fileDigest);
     }
 
-    private static async Task<SelfUpdateInfo?> ScanReleasesAsync(bool newerOnly, CancellationToken ct)
+    /// <summary>Newest release carrying the setup exe asset.</summary>
+    public async Task<SelfUpdateInfo?> GetLatestWithAssetAsync(CancellationToken ct = default)
     {
         for (int page = 1; page <= 3; page++)
         {
@@ -117,25 +106,11 @@ internal sealed class SelfUpdater
             foreach (var root in doc.RootElement.EnumerateArray())
             {
                 var info = InfoFromRelease(root);
-                if (info == null) continue;
-                if (newerOnly)
-                {
-                    if (Version.Parse(info.Version) <= CurrentVersion) return null;
-                    return info;
-                }
-                return info;
+                if (info != null) return info;
             }
         }
         return null;
     }
-
-    /// <summary>Newest release carrying the zip asset that is newer than this app.</summary>
-    public Task<SelfUpdateInfo?> CheckForUpdatesAsync(CancellationToken ct = default) =>
-        ScanReleasesAsync(newerOnly: true, ct);
-
-    /// <summary>Newest release carrying the zip asset, even if already installed (reinstall).</summary>
-    public Task<SelfUpdateInfo?> GetLatestWithAssetAsync(CancellationToken ct = default) =>
-        ScanReleasesAsync(newerOnly: false, ct);
 
     private static async Task DownloadFileAsync(string url, string dest, long size,
         IProgress<double> progress, CancellationToken ct)
@@ -190,21 +165,21 @@ internal sealed class SelfUpdater
         Directory.CreateDirectory(dir);
         foreach (string f in Directory.GetFiles(dir)) File.Delete(f);
 
-        string zipPath = Path.Combine(dir, update.ZipName);
-        await DownloadFileAsync(update.ZipUrl, zipPath, update.ZipSize, progress, ct);
+        string exePath = Path.Combine(dir, update.FileName);
+        await DownloadFileAsync(update.FileUrl, exePath, update.FileSize, progress, ct);
 
-        using var res = await _dl.GetAsync(update.ZipUrl + ".sha256", ct);
+        using var res = await _dl.GetAsync(update.FileUrl + ".sha256", ct);
         res.EnsureSuccessStatusCode();
         string setupSum = ParseChecksum(await res.Content.ReadAsStringAsync(ct));
-        if (!string.Equals(Sha256File(zipPath), setupSum, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Download check failed for " + update.ZipName + ". Deleted nothing.");
-        if (update.ZipDigest != "" && !string.Equals(Sha256File(zipPath), update.ZipDigest, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Download does not match the release checksum for " + update.ZipName + ".");
+        if (!string.Equals(Sha256File(exePath), setupSum, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Download check failed for " + update.FileName + ". Deleted nothing.");
+        if (update.FileDigest != "" && !string.Equals(Sha256File(exePath), update.FileDigest, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Download does not match the release checksum for " + update.FileName + ".");
         progress?.Report(1.0);
         return dir;
     }
 
-    public static void InstallAndRestart(string dir, string zipName)
+    public static void InstallAndRestart(string dir, string assetName)
     {
         string appDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
         int pid = Environment.ProcessId;
@@ -214,10 +189,10 @@ internal sealed class SelfUpdater
             "@echo off\r\n" +
             $"set \"UPD={dir}\"\r\n" +
             $"set \"APPDIR={appDir}\"\r\n" +
-            $"set \"ZIP={zipName}\"\r\n" +
+            $"set \"NEW={assetName}\"\r\n" +
             ":wait\r\ntasklist /FI \"PID eq {pid}\" 2>NUL | find \"{pid}\" >NUL\r\n" +
             "if %errorlevel%==0 ( timeout /t 1 /nobreak >NUL & goto wait )\r\n" +
-            "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Expand-Archive -Path '%UPD%\\%ZIP%' -DestinationPath '%APPDIR%' -Force\"\r\n" +
+            $"move /y \"%UPD%\\%NEW%\" \"%APPDIR%\\{ExeName}\"\r\n" +
             $"start \"\" \"%APPDIR%\\{ExeName}\"\r\n" +
             "rd /s /q \"%UPD%\"\r\n" +
             "(goto) 2>nul & del \"%~f0\"\r\n";
