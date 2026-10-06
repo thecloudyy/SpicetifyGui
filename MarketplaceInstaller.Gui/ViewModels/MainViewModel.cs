@@ -67,6 +67,11 @@ public partial class MainViewModel : ObservableObject
     public string InstallUninstallText => IsInstalled ? "Uninstall" : "Install";
     public string FilesPillText => InstalledTag == "" ? "Installed" : InstalledTag;
 
+    /// <summary>The step/progress row only carries text once a run starts.</summary>
+    public bool HasStepInfo => StepText != "";
+
+    partial void OnStepTextChanged(string value) => OnPropertyChanged(nameof(HasStepInfo));
+
     /// <summary>Latest spicetify/marketplace release tag, e.g. "v1.0.11 (marketplace: version)".</summary>
     public string MarketplaceVersionLabel =>
         (MarketplaceVersion == "" ? "…" : "v" + MarketplaceVersion) + " (marketplace: version)";
