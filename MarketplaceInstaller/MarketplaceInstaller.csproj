@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>MarketplaceInstaller</AssemblyName>
+    <Version>1.0.0</Version>
+    <Description>Core updater logic for the Spicetify Marketplace app (port of enhanced.py).</Description>
+  </PropertyGroup>
+
+</Project>

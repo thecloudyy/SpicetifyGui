@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="MarketplaceInstaller.Gui/MarketplaceInstaller.Gui.csproj" />
+  <Project Path="MarketplaceInstaller/MarketplaceInstaller.csproj" />
+</Solution>
