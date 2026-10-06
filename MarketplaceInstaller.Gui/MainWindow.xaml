@@ -4,8 +4,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-        Title="Spicetify Marketplace Updater" Width="640" Height="860"
-        MinWidth="540" MinHeight="640"
+        Title="Spicetify Marketplace Updater" Width="600" Height="660"
+        MinWidth="500" MinHeight="480"
         WindowStartupLocation="CenterScreen"
         ExtendsContentIntoTitleBar="True"
         TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
@@ -19,125 +19,143 @@
 
         <ui:TitleBar Grid.Row="0" Title="Spicetify Marketplace Updater" ShowMaximize="False" />
 
-        <StackPanel Grid.Row="1" Margin="20,8,20,12">
-            <Grid Margin="0,0,0,4">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Image Source="logo.png" Width="38" Height="38" Margin="0,0,12,0" VerticalAlignment="Center" />
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Text="Spicetify Marketplace Updater" FontSize="20" FontWeight="Bold" />
-                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                        <TextBlock Text="{Binding InstalledLabel}" FontSize="11" Foreground="#6b7280" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding AppVersion}" FontSize="11" Foreground="#4b5563" Margin="8,0,0,0" VerticalAlignment="Center" />
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="18,6,18,10">
+            <StackPanel>
+                <Grid Margin="0,0,0,2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Image Source="logo.png" Width="32" Height="32" Margin="0,0,10,0" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Spicetify Marketplace Updater" FontSize="18" FontWeight="Bold" />
+                        <StackPanel Orientation="Horizontal" Margin="0,1,0,0">
+                            <TextBlock Text="{Binding InstalledLabel}" FontSize="11" Foreground="#6b7280" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding AppVersion}" FontSize="11" Foreground="#4b5563" Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
-            </Grid>
+                </Grid>
 
-            <TextBlock Text="{Binding SystemStatus}" FontSize="11" Foreground="#6b7280" Margin="0,0,0,12" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding SystemStatus}" FontSize="11" Foreground="#6b7280" Margin="0,0,0,10" TextWrapping="Wrap" />
 
-            <Border Padding="16" CornerRadius="8" Background="#262626"
-                    BorderBrush="#333333" BorderThickness="1" Margin="0,0,0,16">
-                <StackPanel>
-                    <TextBlock Text="{Binding StatusMessage}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding CurrentStep}" FontSize="12" Foreground="#9ca3af"
-                               Margin="0,4,0,0" TextWrapping="Wrap" MinHeight="18" />
-                    <Grid Margin="0,10,0,6">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding StepText}" FontSize="11" Foreground="#6b7280" VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="1" Text="{Binding ProgressText}" FontSize="11" Foreground="#9ca3af" VerticalAlignment="Center" />
-                    </Grid>
-                    <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress, Mode=OneWay}" Height="6"
-                                 IsIndeterminate="{Binding IsProgressIndeterminate}"
-                                 Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
-                    <ItemsControl ItemsSource="{Binding Steps}" Margin="0,12,0,0">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid Columns="4" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel Margin="0,0,8,0">
-                                    <Border Height="6" CornerRadius="3" Background="{Binding Bar}" />
-                                    <TextBlock Text="{Binding Label}" FontSize="11" Foreground="#6b7280" Margin="0,4,0,0" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
-
-            <WrapPanel Orientation="Horizontal">
-                <ui:Button Content="{Binding InstallUninstallText}" Command="{Binding InstallUninstallCommand}" Appearance="Primary" Margin="0,0,8,8" Padding="20,6" />
-                <ui:Button Content="Update" Command="{Binding UpdateModCommand}" Margin="0,0,8,8" Padding="20,6" />
-                <ui:Button Content="Cancel" Command="{Binding CancelRunCommand}"
-                           Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"
-                           Margin="0,0,8,8" Padding="20,6" />
-            </WrapPanel>
-
-            <Border Padding="14" CornerRadius="8" Background="#262626"
-                    BorderBrush="#333333" BorderThickness="1" Margin="0,8,0,0">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon VerticalAlignment="Center" Foreground="#38bdf8" Symbol="ArrowDownload24" />
-                        <TextBlock Margin="10,0,0,0" VerticalAlignment="Center"
-                                   FontSize="15" FontWeight="SemiBold" Text="App" />
-                        <Border Margin="10,0,0,0" Padding="7,2" VerticalAlignment="Center"
-                                Background="#203b82f6" CornerRadius="4">
-                            <TextBlock Text="{Binding AppVersion}" FontSize="10.5"
-                                       FontWeight="SemiBold" Foreground="#93c5fd" />
-                        </Border>
+                <Border Padding="12" CornerRadius="12" Background="#262626"
+                        BorderBrush="#333333" BorderThickness="1" Margin="0,0,0,12">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon FontSize="18" Foreground="{Binding StatusIconColor}"
+                                           Symbol="{Binding StatusIcon}" VerticalAlignment="Top" Margin="0,1,10,0" />
+                            <StackPanel>
+                                <TextBlock Text="{Binding StatusMessage}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding CurrentStep}" FontSize="12" Foreground="#9ca3af"
+                                           Margin="0,3,0,0" TextWrapping="Wrap" MinHeight="17" />
+                            </StackPanel>
+                        </StackPanel>
+                        <Grid Margin="0,8,0,5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding StepText}" FontSize="11" Foreground="#6b7280" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding ProgressText}" FontSize="11" Foreground="#9ca3af" VerticalAlignment="Center" />
+                        </Grid>
+                        <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress, Mode=OneWay}" Height="6"
+                                     IsIndeterminate="{Binding IsProgressIndeterminate}"
+                                     Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                        <ItemsControl ItemsSource="{Binding Steps}" Margin="0,10,0,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="4" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,0,8,0">
+                                        <Border Height="6" CornerRadius="3" Background="{Binding Bar}" />
+                                        <TextBlock Text="{Binding Label}" FontSize="11" Foreground="#6b7280" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
-                    <StackPanel Margin="0,12,0,0" Orientation="Horizontal">
-                        <ui:Button MinWidth="120" HorizontalContentAlignment="Center" Appearance="Primary"
-                                   Command="{Binding ReinstallAppCommand}" Content="Reinstall"
-                                   Icon="{ui:SymbolIcon ArrowDownload24}" IsEnabled="{Binding CanSelfUpdate}" />
-                    </StackPanel>
-                    <ProgressBar Height="6" Margin="0,12,0,0" Maximum="100"
-                                 Value="{Binding SelfUpdateProgress, Mode=OneWay}"
-                                 Visibility="{Binding IsSelfUpdating, Converter={StaticResource BoolToVis}}" />
-                    <TextBlock Margin="0,8,0,0" FontSize="12" Foreground="#f59e0b"
-                               Text="{Binding SelfUpdateStatus}" TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
+                </Border>
 
-            <Border Padding="14" CornerRadius="8" Background="#262626"
-                    BorderBrush="#333333" BorderThickness="1" Margin="0,8,0,0">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                        <TextBlock Text="Files" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <Border Margin="10,0,0,0" Padding="7,2" VerticalAlignment="Center"
-                                Background="#203b82f6" CornerRadius="4"
-                                Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="{Binding FilesPillText}" FontSize="10.5" FontWeight="SemiBold" Foreground="#93c5fd" />
-                        </Border>
+                <WrapPanel Orientation="Horizontal">
+                    <ui:Button Command="{Binding InstallUninstallCommand}" Appearance="Primary" Margin="0,0,8,8" Padding="16,6">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:SymbolIcon Symbol="ArrowDownload24" FontSize="15" Margin="0,0,8,0" VerticalAlignment="Center"
+                                           Visibility="{Binding IsInstalled, Converter={StaticResource InverseBoolToVis}}" />
+                            <ui:SymbolIcon Symbol="Delete24" FontSize="15" Margin="0,0,8,0" VerticalAlignment="Center"
+                                           Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVis}}" />
+                            <TextBlock Text="{Binding InstallUninstallText}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ui:Button>
+                    <ui:Button Content="Update" Command="{Binding UpdateModCommand}" Icon="{ui:SymbolIcon ArrowClockwise24}"
+                               Margin="0,0,8,8" Padding="16,6" />
+                    <ui:Button Content="Cancel" Command="{Binding CancelRunCommand}" Icon="{ui:SymbolIcon Dismiss24}"
+                               Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"
+                               Margin="0,0,8,8" Padding="16,6" />
+                </WrapPanel>
+
+                <Border Padding="12" CornerRadius="12" Background="#262626"
+                        BorderBrush="#333333" BorderThickness="1" Margin="0,4,0,0">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon VerticalAlignment="Center" Foreground="#38bdf8" Symbol="ArrowDownload24" />
+                            <TextBlock Margin="10,0,0,0" VerticalAlignment="Center"
+                                       FontSize="15" FontWeight="SemiBold" Text="App" />
+                            <Border Margin="10,0,0,0" Padding="7,2" VerticalAlignment="Center"
+                                    Background="#203b82f6" CornerRadius="10">
+                                <TextBlock Text="{Binding AppVersion}" FontSize="10.5"
+                                           FontWeight="SemiBold" Foreground="#93c5fd" />
+                            </Border>
+                        </StackPanel>
+                        <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                            <ui:Button MinWidth="120" HorizontalContentAlignment="Center" Appearance="Primary"
+                                       Command="{Binding ReinstallAppCommand}" Content="Reinstall"
+                                       Icon="{ui:SymbolIcon ArrowDownload24}" IsEnabled="{Binding CanSelfUpdate}" />
+                        </StackPanel>
+                        <ProgressBar Height="6" Margin="0,10,0,0" Maximum="100"
+                                     Value="{Binding SelfUpdateProgress, Mode=OneWay}"
+                                     Visibility="{Binding IsSelfUpdating, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Margin="0,6,0,0" FontSize="12" Foreground="#f59e0b"
+                                   Text="{Binding SelfUpdateStatus}" TextWrapping="Wrap" />
                     </StackPanel>
-                    <ItemsControl ItemsSource="{Binding FileRows}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="0,4,0,4">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="26" />
-                                        <ColumnDefinition Width="130" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <ui:SymbolIcon Grid.Column="0" FontSize="16" Foreground="{Binding IconColor}"
-                                                   Symbol="{Binding Icon}" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" FontSize="12.5" Foreground="#7c8593"
-                                               Text="{Binding Name}" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="2" FontSize="12.5" FontWeight="SemiBold" Foreground="#e5e7eb"
-                                               Text="{Binding Detail}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
-        </StackPanel>
+                </Border>
+
+                <Border Padding="12" CornerRadius="12" Background="#262626"
+                        BorderBrush="#333333" BorderThickness="1" Margin="0,8,0,0">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                            <ui:SymbolIcon VerticalAlignment="Center" Foreground="#38bdf8" Symbol="Document24" />
+                            <TextBlock Text="Files" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0" />
+                            <Border Margin="10,0,0,0" Padding="7,2" VerticalAlignment="Center"
+                                    Background="#203b82f6" CornerRadius="10"
+                                    Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding FilesPillText}" FontSize="10.5" FontWeight="SemiBold" Foreground="#93c5fd" />
+                            </Border>
+                        </StackPanel>
+                        <ItemsControl ItemsSource="{Binding FileRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,3,0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="26" />
+                                            <ColumnDefinition Width="130" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <ui:SymbolIcon Grid.Column="0" FontSize="16" Foreground="{Binding IconColor}"
+                                                       Symbol="{Binding Icon}" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1" FontSize="12.5" Foreground="#7c8593"
+                                                   Text="{Binding Name}" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2" FontSize="12.5" FontWeight="SemiBold" Foreground="#e5e7eb"
+                                                   Text="{Binding Detail}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </ui:FluentWindow>

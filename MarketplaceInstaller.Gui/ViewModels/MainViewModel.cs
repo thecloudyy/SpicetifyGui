@@ -5,6 +5,7 @@ using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MarketplaceInstaller.Gui.Services;
+using Wpf.Ui.Controls;
 
 namespace MarketplaceInstaller.Gui.ViewModels;
 
@@ -15,6 +16,7 @@ public partial class MainViewModel : ObservableObject
     private static readonly Brush TodoBrush = new SolidColorBrush(Color.FromRgb(0x3a, 0x3a, 0x3a));
     private static readonly Brush OkBrush = new SolidColorBrush(Color.FromRgb(0x4a, 0xde, 0x80));
     private static readonly Brush WarnBrush = new SolidColorBrush(Color.FromRgb(0xf5, 0x9e, 0x0b));
+    private static readonly Brush ErrorBrush = new SolidColorBrush(Color.FromRgb(0xf1, 0x4c, 0x4c));
     private static readonly Brush DimBrush = new SolidColorBrush(Color.FromRgb(0x7c, 0x85, 0x93));
 
     private static readonly string[] WatchedFiles =
@@ -34,6 +36,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _statusKnown;
     [ObservableProperty] private string _installedTag = "";
     [ObservableProperty] private string _statusMessage = "Checking…";
+    [ObservableProperty] private SymbolRegular _statusIcon = SymbolRegular.Info24;
+    [ObservableProperty] private Brush _statusIconColor = new SolidColorBrush(Color.FromRgb(0x7c, 0x85, 0x93));
     [ObservableProperty] private string _currentStep = "";
     [ObservableProperty] private string _stepText = "";
     [ObservableProperty] private string _progressText = "";
@@ -80,6 +84,41 @@ public partial class MainViewModel : ObservableObject
     {
         InstallUninstallCommand.NotifyCanExecuteChanged();
         UpdateModCommand.NotifyCanExecuteChanged();
+        RefreshStatusIcon();
+    }
+    partial void OnStatusMessageChanged(string value) => RefreshStatusIcon();
+
+    private void RefreshStatusIcon()
+    {
+        if (IsBusy || StatusMessage.EndsWith("…"))
+        {
+            StatusIcon = SymbolRegular.ArrowClockwise24;
+            StatusIconColor = ActiveBrush;
+            return;
+        }
+        string t = StatusMessage;
+        if (t.Contains("Failed") || t.Contains("not found") || t.Contains("Check failed"))
+        {
+            StatusIcon = SymbolRegular.ErrorCircle24;
+            StatusIconColor = ErrorBrush;
+        }
+        else if (t.Contains("Cancell"))
+        {
+            StatusIcon = SymbolRegular.Warning24;
+            StatusIconColor = WarnBrush;
+        }
+        else if (t.Contains("Ready") || t.Contains("Done") || t.Contains("up to date")
+            || t.Contains("Updated") || t.Contains("Installed") || t.Contains("Uninstall done")
+            || t.Contains("Restarted") || t.Contains("Complete") || t.Contains("Already"))
+        {
+            StatusIcon = SymbolRegular.CheckmarkCircle24;
+            StatusIconColor = OkBrush;
+        }
+        else
+        {
+            StatusIcon = SymbolRegular.Info24;
+            StatusIconColor = DimBrush;
+        }
     }
     partial void OnStepIndexChanged(int value) => RefreshSteps();
 
