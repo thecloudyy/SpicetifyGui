@@ -130,12 +130,7 @@
                             <StackPanel Orientation="Horizontal">
                                 <ui:SymbolIcon VerticalAlignment="Center" Foreground="#38bdf8" Symbol="ArrowDownload24" />
                                 <TextBlock Margin="10,0,0,0" VerticalAlignment="Center"
-                                           FontSize="15" FontWeight="SemiBold" Text="App" />
-                                <Border Margin="10,0,0,0" Padding="7,2" VerticalAlignment="Center"
-                                        Background="#203b82f6" CornerRadius="9">
-                                    <TextBlock Text="{Binding AppVersion}" FontSize="10.5"
-                                               FontWeight="SemiBold" Foreground="#93c5fd" />
-                                </Border>
+                                           FontSize="15" FontWeight="SemiBold" Text="This app" />
                             </StackPanel>
                             <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
                                 <ui:Button MinWidth="120" HorizontalContentAlignment="Center" Appearance="Primary"
