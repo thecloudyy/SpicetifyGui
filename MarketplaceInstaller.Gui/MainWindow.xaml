@@ -13,14 +13,14 @@
         Background="{DynamicResource ApplicationBackgroundBrush}"
         mc:Ignorable="d">
     <Border Background="{DynamicResource ApplicationBackgroundBrush}"
-            BorderBrush="#3d3d3d" BorderThickness="1" CornerRadius="16">
+            BorderBrush="#3d3d3d" BorderThickness="1" CornerRadius="20">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <ui:TitleBar Grid.Row="0" Title="Spicetify Marketplace Updater" ShowMaximize="False" />
+            <ui:TitleBar Grid.Row="0" Title="" ShowMaximize="False" />
 
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="18,6,18,10">
                 <StackPanel>
@@ -35,18 +35,34 @@
                         </StackPanel>
                     </Grid>
 
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                    <WrapPanel Orientation="Horizontal" Margin="0,0,0,10">
                         <Border Padding="7,2" VerticalAlignment="Center"
                                 Background="#2038bdf8" CornerRadius="9">
-                            <TextBlock Text="{Binding SystemStatus}" FontSize="10.5"
-                                       FontWeight="SemiBold" Foreground="#93c5fd" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding SystemStatus}" FontSize="10.5"
+                                           FontWeight="SemiBold" Foreground="#93c5fd" />
+                                <TextBlock Text="  ✓ latest" FontSize="10.5" FontWeight="SemiBold"
+                                           Foreground="#4ade80"
+                                           Visibility="{Binding IsSpicetifyLatest, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock Text="  {Binding SpicetifyUpdateBadge}" FontSize="10.5" FontWeight="SemiBold"
+                                           Foreground="#fbbf24"
+                                           Visibility="{Binding IsSpicetifyOutdated, Converter={StaticResource BoolToVis}}" />
+                            </StackPanel>
                         </Border>
                         <Border Padding="7,2" Margin="8,0,0,0" VerticalAlignment="Center"
                                 Background="#2016a34d" CornerRadius="9">
-                            <TextBlock Text="{Binding MarketplaceVersionLabel}" FontSize="10.5"
-                                       FontWeight="SemiBold" Foreground="#86efac" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding MarketplaceVersionLabel}" FontSize="10.5"
+                                           FontWeight="SemiBold" Foreground="#86efac" />
+                                <TextBlock Text="  ✓ latest" FontSize="10.5" FontWeight="SemiBold"
+                                           Foreground="#4ade80"
+                                           Visibility="{Binding IsMarketplaceLatest, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock Text="  {Binding MarketplaceUpdateBadge}" FontSize="10.5" FontWeight="SemiBold"
+                                           Foreground="#fbbf24"
+                                           Visibility="{Binding IsMarketplaceOutdated, Converter={StaticResource BoolToVis}}" />
+                            </StackPanel>
                         </Border>
-                    </StackPanel>
+                    </WrapPanel>
 
                     <Border Padding="14" CornerRadius="18" Background="#262626"
                             BorderBrush="#333333" BorderThickness="1" Margin="0,0,0,12">

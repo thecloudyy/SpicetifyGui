@@ -99,7 +99,14 @@ public static class MarketplaceOps
         return InstallState.GetRecordedTag();
     }
 
-    public static async Task<string?> LatestReleaseVersionAsync(CancellationToken ct)
+    public static Task<string?> LatestReleaseVersionAsync(CancellationToken ct) =>
+        LatestReleaseTagAsync(MarketplacePaths.LatestReleaseApi, ct);
+
+    /// <summary>Latest spicetify/cli release tag (the Spicetify CLI itself), e.g. "2.45.3".</summary>
+    public static Task<string?> LatestSpicetifyCliVersionAsync(CancellationToken ct) =>
+        LatestReleaseTagAsync(MarketplacePaths.LatestSpicetifyCliApi, ct);
+
+    private static async Task<string?> LatestReleaseTagAsync(string api, CancellationToken ct)
     {
         try
         {
@@ -107,7 +114,7 @@ public static class MarketplaceOps
             http.DefaultRequestHeaders.UserAgent.ParseAdd(MarketplacePaths.UserAgent);
             http.DefaultRequestHeaders.Accept.Add(
                 new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-            string json = await http.GetStringAsync(MarketplacePaths.LatestReleaseApi, ct);
+            string json = await http.GetStringAsync(api, ct);
             using var doc = JsonDocument.Parse(json);
             string tag = doc.RootElement.TryGetProperty("tag_name", out var t)
                 ? t.GetString() ?? "" : "";

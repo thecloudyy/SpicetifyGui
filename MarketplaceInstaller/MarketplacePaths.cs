@@ -7,6 +7,7 @@ public static class MarketplacePaths
 
     public const string Repo = "spicetify/spicetify-marketplace";
     public const string ReleasesRepo = "spicetify/marketplace";
+    public const string SpicetifyCliRepo = "spicetify/cli";
     public const string Branch = "dist";
     public const string AppName = "marketplace";
 
@@ -22,6 +23,9 @@ public static class MarketplacePaths
 
     public static string LatestReleaseApi =>
         $"https://api.github.com/repos/{ReleasesRepo}/releases/latest";
+
+    public static string LatestSpicetifyCliApi =>
+        $"https://api.github.com/repos/{SpicetifyCliRepo}/releases/latest";
 
     public static string StateDir =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),

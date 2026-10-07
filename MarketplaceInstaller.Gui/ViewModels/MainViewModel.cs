@@ -36,6 +36,12 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _statusKnown;
     [ObservableProperty] private string _installedTag = "";
     [ObservableProperty] private string _marketplaceVersion = "";
+    [ObservableProperty] private bool _isSpicetifyLatest;
+    [ObservableProperty] private bool _isSpicetifyOutdated;
+    [ObservableProperty] private string _spicetifyUpdateBadge = "";
+    [ObservableProperty] private bool _isMarketplaceLatest;
+    [ObservableProperty] private bool _isMarketplaceOutdated;
+    [ObservableProperty] private string _marketplaceUpdateBadge = "";
     [ObservableProperty] private string _statusMessage = "Checking…";
     [ObservableProperty] private SymbolRegular _statusIcon = SymbolRegular.Info24;
     [ObservableProperty] private Brush _statusIconColor = new SolidColorBrush(Color.FromRgb(0x7c, 0x85, 0x93));
@@ -199,22 +205,30 @@ public partial class MainViewModel : ObservableObject
         SystemStatus = "Checking…";
         try
         {
-            var (ok, version, present, local, latest) = await Task.Run(async () =>
+            var (ok, version, present, local, latest, cliLatest) = await Task.Run(async () =>
             {
-                string? lt = null;
-                try { lt = await MarketplaceOps.LatestReleaseVersionAsync(CancellationToken.None); }
+                string? lt = null, cli = null;
+                try
+                {
+                    var mkt = MarketplaceOps.LatestReleaseVersionAsync(CancellationToken.None);
+                    var spc = MarketplaceOps.LatestSpicetifyCliVersionAsync(CancellationToken.None);
+                    lt = await mkt;
+                    cli = await spc;
+                }
                 catch { }
                 return (MarketplaceOps.IsSpicetifyInstalled(),
                     MarketplaceOps.SpicetifyVersion(),
                     MarketplaceOps.IsPresent(Dir),
                     MarketplaceOps.LocalVersion(Dir),
-                    lt);
+                    lt,
+                    cli);
             });
             _spicetifyOk = ok;
             IsInstalled = present;
             InstalledTag = local != null ? "v" + local : "";
             MarketplaceVersion = latest ?? "";
             RefreshFileRows(present, local, latest);
+            RefreshLatestBadges(ok, version, present, local, latest, cliLatest);
 
             if (!ok)
             {
@@ -235,6 +249,39 @@ public partial class MainViewModel : ObservableObject
             SystemStatus = "Check failed.";
             StatusMessage = "Check failed.";
         }
+    }
+
+    /// <summary>
+    /// "Latest or not" badges next to the two header chips: a green tick when the
+    /// installed version matches the newest GitHub release, an amber arrow with the
+    /// target version when it does not, and nothing at all when either side is unknown.
+    /// </summary>
+    private void RefreshLatestBadges(bool spicetifyOk, string version, bool present,
+        string? localMarketplace, string? latestMarketplace, string? latestCli)
+    {
+        string cliNorm = latestCli == null ? "" : NormVer(latestCli);
+        string cliLocal = !spicetifyOk || version is "" or "unknown" ? "" : NormVer(version);
+        bool cliComparable = cliNorm != "" && cliLocal != "";
+        IsSpicetifyLatest = cliComparable && cliLocal == cliNorm;
+        IsSpicetifyOutdated = cliComparable && cliLocal != cliNorm;
+        SpicetifyUpdateBadge = IsSpicetifyOutdated ? "↑ v" + cliNorm : "";
+
+        string mktNorm = latestMarketplace == null ? "" : NormVer(latestMarketplace);
+        string mktLocal = !present || localMarketplace == null ? "" : NormVer(localMarketplace);
+        bool mktComparable = mktNorm != "" && mktLocal != "";
+        IsMarketplaceLatest = mktComparable && mktLocal == mktNorm;
+        IsMarketplaceOutdated = mktComparable && mktLocal != mktNorm;
+        MarketplaceUpdateBadge = IsMarketplaceOutdated ? "↑ v" + mktNorm : "";
+    }
+
+    /// <summary>"v2.45.3 (spicetify: version)" → "2.45.3".</summary>
+    private static string NormVer(string v)
+    {
+        string s = v.Trim();
+        int cut = s.IndexOfAny(new[] { ' ', '(' });
+        if (cut >= 0) s = s[..cut];
+        s = s.Trim().TrimStart('v', 'V').Trim();
+        return s;
     }
 
     private void RefreshFileRows(bool present, string? local, string? latest)

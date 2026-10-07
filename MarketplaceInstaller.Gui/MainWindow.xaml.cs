@@ -10,7 +10,7 @@ namespace MarketplaceInstaller.Gui;
 public partial class MainWindow : FluentWindow
 {
     /// <summary>Window corner radius, matching the root Border in MainWindow.xaml.</summary>
-    private const double WindowCornerRadius = 16;
+    private const double WindowCornerRadius = 20;
 
     // DWMWA_WINDOW_CORNER_PREFERENCE (33) / DWMWCP_ROUND (2) — Windows 11 only.
     private const int DwmwaWindowCornerPreference = 33;
