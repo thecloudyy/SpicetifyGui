@@ -425,7 +425,7 @@ public partial class MainViewModel : ObservableObject
 
     private static readonly string[] SummaryPrefixes =
     {
-        "OK:", "Installed ", "Updated to ", "Already up to date",
+        "OK:", "Installed ", "Updated to ",
         "Uninstall done", "Download verified.", "Update complete."
     };
 
@@ -441,9 +441,7 @@ public partial class MainViewModel : ObservableObject
                     return t;
             }
         }
-        return code == 0 ? "Done."
-            : code == 4 ? "Already up to date."
-            : "Failed.";
+        return code == 0 ? "Done." : "Failed.";
     }
 
     private async Task RunOpAsync(Func<IProgress<string>, IProgress<double>, CancellationToken, Task<int>> op, string phase)
@@ -466,8 +464,8 @@ public partial class MainViewModel : ObservableObject
         try
         {
             int code = await op(log, bar, _runCts.Token);
-            StatusMessage = code == 4 ? "Already up to date." : FriendlyStatus(lines, code);
-            if (code is 0 or 4) { StepIndex = Steps.Count; CurrentStep = ""; ProgressText = ""; }
+            StatusMessage = FriendlyStatus(lines, code);
+            if (code == 0) { StepIndex = Steps.Count; CurrentStep = ""; ProgressText = ""; }
         }
         catch (OperationCanceledException)
         {

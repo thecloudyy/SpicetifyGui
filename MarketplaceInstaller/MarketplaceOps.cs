@@ -9,7 +9,8 @@ namespace MarketplaceInstaller;
 /// <summary>
 /// Backend port of enhanced.py: download dist branch zip, safe-extract,
 /// backup/restore, register custom app, spicetify apply.
-/// Return codes: 0 ok, 4 already up to date, else failure (matches enhanced.py).
+/// Return codes: 0 ok, else failure. Updates always reinstall the latest
+/// build — "already up to date" is a display-only badge, never a skip.
 /// </summary>
 public static class MarketplaceOps
 {
@@ -86,22 +87,6 @@ public static class MarketplaceOps
         {
             return null;
         }
-    }
-
-    public static async Task<bool> IsUpToDateAsync(string marketplaceDir, IProgress<string>? log, CancellationToken ct, string? latestTag = null)
-    {
-        string? local = LocalVersion(marketplaceDir);
-        if (local == null) return false;
-        latestTag ??= await LatestReleaseVersionAsync(ct);
-        if (latestTag == null) return false;
-        string latest = latestTag;
-        if (local == latest)
-        {
-            Say(log, $"Marketplace is already up to date (v{local}).");
-            return true;
-        }
-        Say(log, $"Updating from v{local} to v{latest}.");
-        return false;
     }
 
     public static async Task DownloadFileAsync(string url, string dest,
@@ -400,7 +385,7 @@ public static class MarketplaceOps
 
     private static async Task<int> RunUpdateAsync(string marketplaceDir,
         IProgress<string>? log, IProgress<double>? progress,
-        CancellationToken ct, bool force)
+        CancellationToken ct)
     {
         progress?.Report(-1);
         Say(log, "Starting update.");
@@ -426,15 +411,8 @@ public static class MarketplaceOps
 
             latestTag = await LatestReleaseVersionAsync(ct);
 
-            // Decide before touching the running player: the up-to-date check
-            // only reads the manifest, so a no-op update must not close Spotify.
-            if (!force && await IsUpToDateAsync(
-                    marketplaceDir, log, ct, latestTag))
-            {
-                Say(log, "Already up to date.");
-                return 4;
-            }
-
+            // Always reinstall the latest build — the Update button never
+            // skips on "already up to date"; freshness is display-only.
             wasRunning = Spotify.IsRunning();
             if (wasRunning)
             {
@@ -545,12 +523,12 @@ public static class MarketplaceOps
     public static Task<int> InstallFlowAsync(string marketplaceDir,
         IProgress<string>? log = null, IProgress<double>? progress = null,
         CancellationToken ct = default) =>
-        RunUpdateAsync(marketplaceDir, log, progress, ct, force: true);
+        RunUpdateAsync(marketplaceDir, log, progress, ct);
 
     public static Task<int> UpdateFlowAsync(string marketplaceDir,
         IProgress<string>? log = null, IProgress<double>? progress = null,
         CancellationToken ct = default) =>
-        RunUpdateAsync(marketplaceDir, log, progress, ct, force: false);
+        RunUpdateAsync(marketplaceDir, log, progress, ct);
 
     public static int UninstallFlow(string marketplaceDir, IProgress<string>? log = null,
         CancellationToken ct = default)
