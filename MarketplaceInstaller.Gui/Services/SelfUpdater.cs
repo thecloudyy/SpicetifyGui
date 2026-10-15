@@ -15,7 +15,8 @@ internal sealed record SelfUpdateInfo(
     string FileUrl,
     long FileSize,
     string FileDigest,
-    string ChecksumUrl);
+    string ChecksumUrl,
+    string AppChecksumUrl);
 
 /// <summary>
 /// Self-update service for SpicetifyGui. Releases live under a single
@@ -34,6 +35,10 @@ internal sealed class SelfUpdater
     public const string ExeName = "SpicetifyGui.exe";
     private const string AssetPrefix = "SpicetifyGui-Setup-";
     private const string AssetSuffix = "-win-x64.exe";
+
+    /// <summary>Release asset carrying the sha256 of the installed app exe —
+    /// how the UI knows whether the running build is the latest one.</summary>
+    private const string AppChecksumAsset = ExeName + ".sha256";
 
     private static readonly HttpClient _api = new() { Timeout = TimeSpan.FromSeconds(20) };
     private static readonly HttpClient _dl = new() { Timeout = Timeout.InfiniteTimeSpan };
@@ -54,13 +59,18 @@ internal sealed class SelfUpdater
         if (tag == "") return null;
         if (!root.TryGetProperty("assets", out var assets)) return null;
 
-        string fileName = "", fileUrl = "", fileDigest = "", checksumUrl = "";
+        string fileName = "", fileUrl = "", fileDigest = "", checksumUrl = "", appChecksumUrl = "";
         long fileSize = 0;
         foreach (var a in assets.EnumerateArray())
         {
             string name = a.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
             string url = a.TryGetProperty("browser_download_url", out var u) ? u.GetString() ?? "" : "";
             if (url == "") continue;
+            if (name.Equals(AppChecksumAsset, StringComparison.OrdinalIgnoreCase))
+            {
+                appChecksumUrl = url;
+                continue;
+            }
             if (name.StartsWith(AssetPrefix, StringComparison.OrdinalIgnoreCase)
                 && name.EndsWith(AssetSuffix + ".sha256", StringComparison.OrdinalIgnoreCase))
             {
@@ -87,7 +97,7 @@ internal sealed class SelfUpdater
         string relName = root.TryGetProperty("name", out var rn) ? rn.GetString() ?? "" : "";
         string notes = root.TryGetProperty("body", out var rb) ? rb.GetString() ?? "" : "";
         return new SelfUpdateInfo(tag, relName, notes,
-            fileName, fileUrl, fileSize, fileDigest, checksumUrl);
+            fileName, fileUrl, fileSize, fileDigest, checksumUrl, appChecksumUrl);
     }
 
     private static string RateLimitSuffix(HttpResponseMessage res)
@@ -133,15 +143,43 @@ internal sealed class SelfUpdater
         return InfoFromRelease(doc.RootElement);
     }
 
-    /// <summary>Downloads the release's .sha256 sidecar asset and returns the
-    /// hex digest it advertises (first 64-hex token of the file).</summary>
-    private static async Task<string> FetchSidecarDigestAsync(string url, CancellationToken ct)
+    /// <summary>Downloads a .sha256 asset and returns the hex digest it
+    /// advertises (first 64-hex token of the file).</summary>
+    internal static async Task<string> FetchChecksumAsync(string url, CancellationToken ct)
     {
         using var res = await _dl.GetAsync(url, ct);
         res.EnsureSuccessStatusCode();
         string text = await res.Content.ReadAsStringAsync(ct);
         var m = System.Text.RegularExpressions.Regex.Match(text, "[0-9a-fA-F]{64}");
         return m.Success ? m.Value.ToLowerInvariant() : "";
+    }
+
+    /// <summary>Sha256 of the executable this process was started from — the
+    /// file Inno installed, byte-identical to the published single-file build.</summary>
+    internal static string LocalExeSha256()
+    {
+        try
+        {
+            string? path = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return "";
+            return Sha256File(path);
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    /// <summary>Is the running build the one the `latest` release ships? True/false,
+    /// or null when it cannot be determined (no sidecar published, offline, …).</summary>
+    internal async Task<bool?> IsRunningBuildLatestAsync(CancellationToken ct = default)
+    {
+        var info = await GetLatestWithAssetAsync(ct);
+        if (info == null || info.AppChecksumUrl == "") return null;
+        string expected = await FetchChecksumAsync(info.AppChecksumUrl, ct);
+        string local = LocalExeSha256();
+        if (expected == "" || local == "") return null;
+        return string.Equals(local, expected, StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task DownloadFileAsync(string url, string dest, long size,
@@ -192,7 +230,7 @@ internal sealed class SelfUpdater
         string expected = "";
         if (update.ChecksumUrl != "")
         {
-            try { expected = await FetchSidecarDigestAsync(update.ChecksumUrl, ct); }
+            try { expected = await FetchChecksumAsync(update.ChecksumUrl, ct); }
             catch { expected = ""; }
         }
         if (expected == "") expected = update.FileDigest.Trim();

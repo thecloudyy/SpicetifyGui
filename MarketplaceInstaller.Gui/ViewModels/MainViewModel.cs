@@ -55,6 +55,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private double _selfUpdateProgress;
     [ObservableProperty] private string _selfUpdateStatus = "";
     [ObservableProperty] private bool _canSelfUpdate = true;
+    [ObservableProperty] private bool _isAppLatest;
+    [ObservableProperty] private bool _isAppOutdated;
+    [ObservableProperty] private string _appUpdateBadge = "";
 
     public ObservableCollection<StepItem> Steps { get; } = new();
     public ObservableCollection<FileStatusItem> FileRows { get; } = new();
@@ -205,15 +208,18 @@ public partial class MainViewModel : ObservableObject
         SystemStatus = "Checking…";
         try
         {
-            var (ok, version, present, local, latest, cliLatest) = await Task.Run(async () =>
+            var (ok, version, present, local, latest, cliLatest, appFresh) = await Task.Run(async () =>
             {
                 string? lt = null, cli = null;
+                bool? fresh = null;
                 try
                 {
                     var mkt = MarketplaceOps.LatestReleaseVersionAsync(CancellationToken.None);
                     var spc = MarketplaceOps.LatestSpicetifyCliVersionAsync(CancellationToken.None);
+                    var app = _selfUpdater.IsRunningBuildLatestAsync(CancellationToken.None);
                     lt = await mkt;
                     cli = await spc;
+                    fresh = await app;
                 }
                 catch { }
                 return (MarketplaceOps.IsSpicetifyInstalled(),
@@ -221,8 +227,12 @@ public partial class MainViewModel : ObservableObject
                     MarketplaceOps.IsPresent(Dir),
                     MarketplaceOps.LocalVersion(Dir),
                     lt,
-                    cli);
+                    cli,
+                    fresh);
             });
+            IsAppLatest = appFresh == true;
+            IsAppOutdated = appFresh == false;
+            AppUpdateBadge = appFresh == false ? "↑ update available" : "";
             IsInstalled = present;
             InstalledTag = local != null ? "v" + local : "";
             MarketplaceVersion = latest ?? "";

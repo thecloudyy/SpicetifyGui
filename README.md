@@ -27,6 +27,9 @@ Requires the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dot
 - File status card: per-file presence plus release freshness (up to date / update available).
 - Self-update: the App card reinstalls the `latest` release
   (SHA-256 verified against the published `.sha256` asset) and restarts itself.
+- The App card shows whether the build you are running is the latest one:
+  a green ✓ latest, or an amber update-available badge — checked by hashing
+  the running exe against the published `SpicetifyGui.exe.sha256` asset.
 - Never leaves Spotify running unless it was open before the update.
 
 ## Build from source
@@ -60,5 +63,11 @@ dotnet publish MarketplaceInstaller.Gui/MarketplaceInstaller.Gui.csproj -c Relea
 ISCC.exe /DAppVersion=latest installer.iss
 $hash = (Get-FileHash -Algorithm SHA256 dist\SpicetifyGui-Setup-latest-win-x64.exe).Hash.ToLower()
 "$hash  SpicetifyGui-Setup-latest-win-x64.exe" | Out-File dist\SpicetifyGui-Setup-latest-win-x64.exe.sha256 -Encoding ascii
-gh release upload latest --clobber dist\SpicetifyGui-Setup-latest-win-x64.exe dist\SpicetifyGui-Setup-latest-win-x64.exe.sha256
+$appHash = (Get-FileHash -Algorithm SHA256 publish-single\SpicetifyGui.exe).Hash.ToLower()
+"$appHash  SpicetifyGui.exe" | Out-File dist\SpicetifyGui.exe.sha256 -Encoding ascii
+gh release upload latest --clobber dist\SpicetifyGui-Setup-latest-win-x64.exe dist\SpicetifyGui-Setup-latest-win-x64.exe.sha256 dist\SpicetifyGui.exe.sha256
 ```
+
+   The app hashes its own running exe (byte-identical to `publish-single\SpicetifyGui.exe`
+   after Inno extracts it) against `SpicetifyGui.exe.sha256` — keep it in sync
+   with the installer on every upload.
