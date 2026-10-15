@@ -44,7 +44,7 @@
                                 <TextBlock Text="  ✓ latest" FontSize="10.5" FontWeight="SemiBold"
                                            Foreground="#4ade80"
                                            Visibility="{Binding IsSpicetifyLatest, Converter={StaticResource BoolToVis}}" />
-                                <TextBlock Text="  {Binding SpicetifyUpdateBadge}" FontSize="10.5" FontWeight="SemiBold"
+                                <TextBlock Text="{Binding SpicetifyUpdateBadge}" Margin="4,0,0,0" FontSize="10.5" FontWeight="SemiBold"
                                            Foreground="#fbbf24"
                                            Visibility="{Binding IsSpicetifyOutdated, Converter={StaticResource BoolToVis}}" />
                             </StackPanel>
@@ -57,7 +57,7 @@
                                 <TextBlock Text="  ✓ latest" FontSize="10.5" FontWeight="SemiBold"
                                            Foreground="#4ade80"
                                            Visibility="{Binding IsMarketplaceLatest, Converter={StaticResource BoolToVis}}" />
-                                <TextBlock Text="  {Binding MarketplaceUpdateBadge}" FontSize="10.5" FontWeight="SemiBold"
+                                <TextBlock Text="{Binding MarketplaceUpdateBadge}" Margin="4,0,0,0" FontSize="10.5" FontWeight="SemiBold"
                                            Foreground="#fbbf24"
                                            Visibility="{Binding IsMarketplaceOutdated, Converter={StaticResource BoolToVis}}" />
                             </StackPanel>
@@ -120,7 +120,7 @@
                         <ui:Button Content="Update" Command="{Binding UpdateModCommand}" Icon="{ui:SymbolIcon ArrowClockwise24}"
                                    CornerRadius="10" Margin="0,0,8,8" Padding="18,8" />
                         <ui:Button Content="Cancel" Command="{Binding CancelRunCommand}" Icon="{ui:SymbolIcon Dismiss24}"
-                                   CornerRadius="10" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"
+                                   CornerRadius="10" Visibility="{Binding IsCancelVisible, Converter={StaticResource BoolToVis}}"
                                    Margin="0,0,8,8" Padding="18,8" />
                     </WrapPanel>
 
@@ -134,7 +134,7 @@
                                 <TextBlock Text="  ✓ latest" FontSize="12" FontWeight="SemiBold"
                                            Foreground="#4ade80" VerticalAlignment="Center"
                                            Visibility="{Binding IsAppLatest, Converter={StaticResource BoolToVis}}" />
-                                <TextBlock Text="  {Binding AppUpdateBadge}" FontSize="12" FontWeight="SemiBold"
+                                <TextBlock Text="{Binding AppUpdateBadge}" Margin="4,0,0,0" FontSize="12" FontWeight="SemiBold"
                                            Foreground="#fbbf24" VerticalAlignment="Center"
                                            Visibility="{Binding IsAppOutdated, Converter={StaticResource BoolToVis}}" />
                             </StackPanel>

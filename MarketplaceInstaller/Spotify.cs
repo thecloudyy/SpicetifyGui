@@ -18,8 +18,16 @@ public static class Spotify
                 };
                 using var p = Process.Start(psi);
                 if (p == null) return false;
-                string out_ = p.StandardOutput.ReadToEnd();
-                p.WaitForExit(5000);
+                // Bounded read: a synchronous ReadToEnd would hang the caller
+                // forever if tasklist ever wedges (this runs in poll loops).
+                Task<string> read = p.StandardOutput.ReadToEndAsync();
+                if (!p.WaitForExit(5000))
+                {
+                    try { p.Kill(); } catch { }
+                    return false;
+                }
+                read.Wait(1000);
+                string out_ = read.IsCompletedSuccessfully ? read.Result : "";
                 return out_.Contains("Spotify.exe", StringComparison.OrdinalIgnoreCase);
             }
             if (OperatingSystem.IsMacOS())
@@ -78,12 +86,12 @@ public static class Spotify
     {
         try
         {
+            // No pipe redirection: the output is never read, and an unread
+            // pipe would stall the child if it ever filled up.
             var psi = new ProcessStartInfo(file, args)
             {
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
             };
             using var p = Process.Start(psi);
             p?.WaitForExit(5000);

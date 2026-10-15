@@ -16,6 +16,20 @@ public static class MarketplaceOps
 {
     private static readonly Regex AnsiRe = new(@"\x1b\[[0-9;]*m", RegexOptions.Compiled);
 
+    // One shared client per role: allocating an HttpClient per call exhausts
+    // sockets on repeated status checks, and the two roles need different timeouts.
+    private static readonly HttpClient ApiClient = CreateClient(TimeSpan.FromSeconds(15));
+    private static readonly HttpClient DownloadClient = CreateClient(TimeSpan.FromMinutes(10));
+
+    private static HttpClient CreateClient(TimeSpan timeout)
+    {
+        var c = new HttpClient { Timeout = timeout };
+        c.DefaultRequestHeaders.UserAgent.ParseAdd(MarketplacePaths.UserAgent);
+        c.DefaultRequestHeaders.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        return c;
+    }
+
     public static string StripAnsi(string s) => AnsiRe.Replace(s, "");
     private static void Say(IProgress<string>? log, string msg)
     {
@@ -72,11 +86,7 @@ public static class MarketplaceOps
     {
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd(MarketplacePaths.UserAgent);
-            http.DefaultRequestHeaders.Accept.Add(
-                new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-            string json = await http.GetStringAsync(api, ct);
+            string json = await ApiClient.GetStringAsync(api, ct);
             using var doc = JsonDocument.Parse(json);
             string tag = doc.RootElement.TryGetProperty("tag_name", out var t)
                 ? t.GetString() ?? "" : "";
@@ -100,9 +110,7 @@ public static class MarketplaceOps
             try
             {
                 Say(log, $"Downloading... (attempt {attempt}/3)");
-                using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-                http.DefaultRequestHeaders.UserAgent.ParseAdd(MarketplacePaths.UserAgent);
-                using var resp = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+                using var resp = await DownloadClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
                 resp.EnsureSuccessStatusCode();
                 long? total = resp.Content.Headers.ContentLength;
                 await using var src = await resp.Content.ReadAsStreamAsync(ct);
@@ -210,10 +218,10 @@ public static class MarketplaceOps
         }
     }
 
-    public static void UpgradeCli(IProgress<string>? log)
+    public static void UpgradeCli(IProgress<string>? log, CancellationToken ct = default)
     {
         Say(log, "Updating Spicetify CLI...");
-        var (code, stdout) = Run(SpicetifyExe(), "upgrade");
+        var (code, stdout) = Run(SpicetifyExe(), "upgrade", ct);
         foreach (string line in stdout.Split('\n'))
         {
             string t = StripAnsi(line).Trim();
@@ -223,6 +231,8 @@ public static class MarketplaceOps
             Say(log, "Spicetify upgrade reported an issue; continuing.");
     }
 
+    /// <summary>Registers the custom app in config-xpui.ini. Deliberately not
+    /// cancellable: killing a config write mid-run can leave the INI half-written.</summary>
     public static void RegisterCustomApp(IProgress<string>? log)
     {
         Say(log, "Registering Marketplace app...");
@@ -256,6 +266,8 @@ public static class MarketplaceOps
         Run(SpicetifyExe(), "config replace_colors 1");
     }
 
+    /// <summary>Runs `spicetify apply`. Deliberately not cancellable: killing it
+    /// mid-run could leave the patched xpui inconsistent.</summary>
     public static bool ApplySpicetify(IProgress<string>? log)
     {
         Say(log, "Applying changes to Spotify...");
@@ -360,8 +372,16 @@ public static class MarketplaceOps
     /// lives in %LOCALAPPDATA%\spicetify and is not on the process PATH yet.</summary>
     private static string SpicetifyExe() => SpicetifyCli.FindExecutable() ?? "spicetify";
 
-    private static (int code, string stdout) Run(string file, string args)
+    /// <summary>Runs a CLI child with a bounded lifetime. Both output streams are
+    /// drained concurrently — reading only stdout deadlocks as soon as the child
+    /// fills the unread stderr pipe (its own writes block, stdout never closes).
+    /// stderr is folded into the returned text so failures are visible in the log.
+    /// A child still alive after <paramref name="timeoutMs"/>, or when <paramref
+    /// name="ct"/> fires, is killed instead of being orphaned.</summary>
+    private static (int code, string stdout) Run(string file, string args,
+        CancellationToken ct = default, int timeoutMs = 120000)
     {
+        ct.ThrowIfCancellationRequested();
         try
         {
             var psi = new ProcessStartInfo(file, args)
@@ -373,9 +393,33 @@ public static class MarketplaceOps
             };
             using var p = Process.Start(psi);
             if (p == null) return (1, "");
-            string stdout = p.StandardOutput.ReadToEnd();
-            p.WaitForExit(120000);
-            return (p.ExitCode, stdout);
+            Task<string> outTask = p.StandardOutput.ReadToEndAsync();
+            Task<string> errTask = p.StandardError.ReadToEndAsync();
+            using var killOnCancel = ct.Register(
+                () => { try { if (!p.HasExited) p.Kill(); } catch { } });
+
+            bool exited = p.WaitForExit(timeoutMs);
+            if (!exited)
+            {
+                try { if (!p.HasExited) p.Kill(); } catch { }
+                p.WaitForExit(5000);
+            }
+            try { Task.WaitAll(new Task[] { outTask, errTask }, 5000); }
+            catch { /* a faulted read yields partial output below */ }
+
+            string stdout = outTask.IsCompletedSuccessfully ? outTask.Result : "";
+            string stderr = errTask.IsCompletedSuccessfully ? errTask.Result : "";
+            string combined = stderr.Trim().Length == 0
+                ? stdout
+                : stdout + (stdout.EndsWith('\n') || stdout.Length == 0 ? "" : "\n") + stderr;
+
+            ct.ThrowIfCancellationRequested();
+            if (!exited) return (1, $"{Path.GetFileName(file)} {args} timed out.");
+            return (p.ExitCode, combined);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -407,7 +451,7 @@ public static class MarketplaceOps
         try
         {
             Say(log, "Checking for updates...");
-            UpgradeCli(log);
+            UpgradeCli(log, ct);
 
             latestTag = await LatestReleaseVersionAsync(ct);
 
@@ -446,12 +490,20 @@ public static class MarketplaceOps
                     {
                         await DownloadFileAsync(url, zip, log, progress, ct);
                     }
+                    catch (OperationCanceledException)
+                    {
+                        throw; // a cancel must read as "Cancelled.", not a download failure
+                    }
                     catch (Exception first) when (url != MarketplacePaths.DistZipUrl)
                     {
                         Say(log, "Release download failed: " + first.Message);
                         Say(log, "Falling back to the dist branch build...");
                         await DownloadFileAsync(MarketplacePaths.DistZipUrl, zip, log, progress, ct);
                     }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
                 }
                 catch (Exception ex)
                 {
@@ -534,21 +586,37 @@ public static class MarketplaceOps
         CancellationToken ct = default)
     {
         Say(log, "Uninstalling Marketplace...");
-        if (Spotify.IsRunning())
-            Spotify.Close(log, ct);
-        if (ct.IsCancellationRequested) return 1;
-
-        if (Directory.Exists(marketplaceDir))
+        bool wasRunning = Spotify.IsRunning();
+        bool finished = false;
+        try
         {
-            string backup = marketplaceDir +
-                ".backup-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
-            Directory.Move(marketplaceDir, backup);
-            Say(log, "Moved install to backup: " + Path.GetFileName(backup));
+            ct.ThrowIfCancellationRequested();
+            if (wasRunning)
+                Spotify.Close(log, ct);
+            ct.ThrowIfCancellationRequested();
+
+            if (Directory.Exists(marketplaceDir))
+            {
+                string backup = marketplaceDir +
+                    ".backup-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                Directory.Move(marketplaceDir, backup);
+                Say(log, "Moved install to backup: " + Path.GetFileName(backup));
+            }
+            // Not interrupted on cancel: apply is fast and local, and killing it
+            // mid-write could leave the patched xpui inconsistent.
+            ApplySpicetify(log);
+            EnsureSpotifyClosed(log, ct);
+            InstallState.Clear();
+            Say(log, "Uninstall done. Original Spotify restored.");
+            finished = true;
+            return 0;
         }
-        ApplySpicetify(log);
-        EnsureSpotifyClosed(log, ct);
-        InstallState.Clear();
-        Say(log, "Uninstall done. Original Spotify restored.");
-        return 0;
+        finally
+        {
+            // A successful uninstall deliberately leaves Spotify closed; a
+            // cancelled or failed one must give back the player it just closed.
+            if (!finished && wasRunning)
+                EnsureSpotifyReopened(log, ct);
+        }
     }
 }

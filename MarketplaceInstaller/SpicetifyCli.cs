@@ -91,9 +91,16 @@ public static class SpicetifyCli
             };
             using var p = Process.Start(psi);
             if (p == null) return (1, "");
-            string stdout = p.StandardOutput.ReadToEnd();
-            p.WaitForExit(8000);
-            return p.HasExited ? (p.ExitCode, stdout) : (1, stdout);
+            // Async drain first: a synchronous ReadToEnd would block forever if
+            // the CLI wedges, making the timeout below unreachable.
+            Task<string> read = p.StandardOutput.ReadToEndAsync();
+            if (!p.WaitForExit(8000))
+            {
+                try { p.Kill(); } catch { }
+                return (1, "spicetify -v timed out.");
+            }
+            read.Wait(2000);
+            return (p.ExitCode, read.IsCompletedSuccessfully ? read.Result : "");
         }
         catch (Exception ex)
         {
@@ -185,20 +192,30 @@ public static class SpicetifyCli
             using var p = Process.Start(psi);
             if (p == null) return (1, "");
             using var reg = ct.Register(() => { try { p.Kill(); } catch { } });
-            string stdout = p.StandardOutput.ReadToEnd();
-            string stderr = p.StandardError.ReadToEnd();
+            // Drain both pipes before waiting: reading stdout to completion first
+            // deadlocks the moment chatty stderr (winget progress) fills its pipe.
+            Task<string> outTask = p.StandardOutput.ReadToEndAsync();
+            Task<string> errTask = p.StandardError.ReadToEndAsync();
             if (!p.WaitForExit((int)timeout.TotalMilliseconds))
             {
                 try { p.Kill(); } catch { }
                 Say(log, "Installer timed out.");
-                return (1, stdout);
+                return (1, outTask.IsCompletedSuccessfully ? outTask.Result : "");
             }
+            try { Task.WaitAll(new Task[] { outTask, errTask }, 5000); } catch { }
+            ct.ThrowIfCancellationRequested();
+            string stdout = outTask.IsCompletedSuccessfully ? outTask.Result : "";
+            string stderr = errTask.IsCompletedSuccessfully ? errTask.Result : "";
             foreach (string line in (stdout + "\n" + stderr).Split('\n'))
             {
                 string t = StripAnsi(line).Trim();
                 if (t != "" && !t.StartsWith("   ") && t != "") Say(log, t);
             }
             return (p.ExitCode, stdout);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {

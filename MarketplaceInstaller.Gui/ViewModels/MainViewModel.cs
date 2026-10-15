@@ -54,7 +54,12 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _isSelfUpdating;
     [ObservableProperty] private double _selfUpdateProgress;
     [ObservableProperty] private string _selfUpdateStatus = "";
-    [ObservableProperty] private bool _canSelfUpdate = true;
+    /// <summary>Reinstall stays disabled while a marketplace run or another
+    /// self-update is in flight — the two flows would otherwise race.</summary>
+    public bool CanSelfUpdate => !IsBusy && !IsSelfUpdating;
+
+    /// <summary>Cancel serves both the marketplace run and the self-update download.</summary>
+    public bool IsCancelVisible => IsBusy || IsSelfUpdating;
     [ObservableProperty] private bool _isAppLatest;
     [ObservableProperty] private bool _isAppOutdated;
     [ObservableProperty] private string _appUpdateBadge = "";
@@ -86,7 +91,7 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnMarketplaceVersionChanged(string value) => OnPropertyChanged(nameof(MarketplaceVersionLabel));
 
-    private bool CanRun() => !IsBusy;
+    private bool CanRun() => !IsBusy && !IsSelfUpdating;
 
     partial void OnInstalledTagChanged(string value)
     {
@@ -104,7 +109,17 @@ public partial class MainViewModel : ObservableObject
     {
         InstallUninstallCommand.NotifyCanExecuteChanged();
         UpdateModCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanSelfUpdate));
+        OnPropertyChanged(nameof(IsCancelVisible));
         RefreshStatusIcon();
+    }
+
+    partial void OnIsSelfUpdatingChanged(bool value)
+    {
+        InstallUninstallCommand.NotifyCanExecuteChanged();
+        UpdateModCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanSelfUpdate));
+        OnPropertyChanged(nameof(IsCancelVisible));
     }
     partial void OnStatusMessageChanged(string value) => RefreshStatusIcon();
 
@@ -388,7 +403,6 @@ public partial class MainViewModel : ObservableObject
     {
         if (IsSelfUpdating || IsBusy) return;
         IsSelfUpdating = true;
-        CanSelfUpdate = false;
         SelfUpdateProgress = 0;
         SelfUpdateStatus = "";
         _selfUpdateCts = new CancellationTokenSource();
@@ -419,7 +433,6 @@ public partial class MainViewModel : ObservableObject
         finally
         {
             IsSelfUpdating = false;
-            CanSelfUpdate = true;
         }
     }
 
@@ -463,7 +476,9 @@ public partial class MainViewModel : ObservableObject
         });
         try
         {
-            int code = await op(log, bar, _runCts.Token);
+            // Task.Run: the ops layer is synchronous process/file work — on the
+            // UI thread every progress bar frame would freeze with it.
+            int code = await Task.Run(() => op(log, bar, _runCts.Token));
             StatusMessage = FriendlyStatus(lines, code);
             if (code == 0) { StepIndex = Steps.Count; CurrentStep = ""; ProgressText = ""; }
         }
