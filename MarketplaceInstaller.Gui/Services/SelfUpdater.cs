@@ -175,7 +175,14 @@ internal sealed class SelfUpdater
     internal async Task<bool?> IsRunningBuildLatestAsync(CancellationToken ct = default)
     {
         var info = await GetLatestWithAssetAsync(ct);
-        if (info == null || info.AppChecksumUrl == "") return null;
+        return info == null ? null : await IsRunningBuildLatestAsync(info, ct);
+    }
+
+    /// <summary>Same check against an already-fetched release — saves the API
+    /// round trip for callers that just pulled the release anyway.</summary>
+    internal async Task<bool?> IsRunningBuildLatestAsync(SelfUpdateInfo info, CancellationToken ct)
+    {
+        if (info.AppChecksumUrl == "") return null;
         string expected = await FetchChecksumAsync(info.AppChecksumUrl, ct);
         string local = LocalExeSha256();
         if (expected == "" || local == "") return null;

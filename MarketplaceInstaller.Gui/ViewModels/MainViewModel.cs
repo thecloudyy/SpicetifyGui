@@ -400,6 +400,17 @@ public partial class MainViewModel : ObservableObject
                 SelfUpdateStatus = "No setup file published yet.";
                 return;
             }
+
+            // Already-installed guard: when the running build matches the
+            // release, say so instead of downloading and reinstalling for nothing.
+            SelfUpdateStatus = "Checking build…";
+            bool? fresh = await _selfUpdater.IsRunningBuildLatestAsync(info, _selfUpdateCts.Token);
+            if (fresh == true)
+            {
+                SelfUpdateStatus = "Already up to date.";
+                return;
+            }
+
             SelfUpdateStatus = $"Downloading {info.FileName}…";
             var prog = new Progress<double>(v => SelfUpdateProgress = v * 100);
             string dir = await _selfUpdater.DownloadAsync(info, prog, _selfUpdateCts.Token);
