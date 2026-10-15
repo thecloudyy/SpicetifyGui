@@ -415,38 +415,40 @@ public static class MarketplaceOps
             }
         }
 
-        bool wasRunning = Spotify.IsRunning();
-        if (wasRunning)
-        {
-            Say(log, "Spotify is open — it will be restarted when done.");
-            await Task.Delay(1200, ct);
-            Spotify.Close(log, ct);
-            ct.ThrowIfCancellationRequested();
-        }
-
         string? backup = null;
         string? latestTag = null;
+        bool wasRunning = false;
+        bool spotifyHandled = false;
         try
         {
-            Directory.CreateDirectory(
-                Path.GetDirectoryName(marketplaceDir) ?? marketplaceDir);
-
-            if (Directory.Exists(marketplaceDir))
-                backup = BackupExisting(marketplaceDir, log);
-
             Say(log, "Checking for updates...");
             UpgradeCli(log);
 
             latestTag = await LatestReleaseVersionAsync(ct);
 
+            // Decide before touching the running player: the up-to-date check
+            // only reads the manifest, so a no-op update must not close Spotify.
             if (!force && await IsUpToDateAsync(
-                    Directory.Exists(marketplaceDir) ? marketplaceDir : backup ?? marketplaceDir,
-                    log, ct, latestTag))
+                    marketplaceDir, log, ct, latestTag))
             {
                 Say(log, "Already up to date.");
-                if (backup != null) RestoreBackup(backup, marketplaceDir, log);
                 return 4;
             }
+
+            wasRunning = Spotify.IsRunning();
+            if (wasRunning)
+            {
+                Say(log, "Spotify is open — it will be restarted when done.");
+                await Task.Delay(1200, ct);
+                Spotify.Close(log, ct);
+                ct.ThrowIfCancellationRequested();
+            }
+
+            Directory.CreateDirectory(
+                Path.GetDirectoryName(marketplaceDir) ?? marketplaceDir);
+
+            if (Directory.Exists(marketplaceDir))
+                backup = BackupExisting(marketplaceDir, log);
 
             string tmp = Path.Combine(Path.GetTempPath(),
                 "spicetify-update-" + Guid.NewGuid().ToString("N"));
@@ -511,6 +513,7 @@ public static class MarketplaceOps
                 EnsureSpotifyReopened(log, ct);
             else
                 EnsureSpotifyClosed(log, ct);
+            spotifyHandled = true;
         }
         catch (OperationCanceledException)
         {
@@ -522,6 +525,13 @@ public static class MarketplaceOps
             Say(log, "Unexpected error: " + ex.Message);
             RestoreBackup(backup, marketplaceDir, log);
             return 1;
+        }
+        finally
+        {
+            // Spotify was closed with a promise to restart it — a failed or
+            // cancelled update still owes the user their player back.
+            if (wasRunning && !spotifyHandled)
+                EnsureSpotifyReopened(log, ct);
         }
 
         string ver = latestTag ?? LocalVersion(marketplaceDir) ?? "latest";
