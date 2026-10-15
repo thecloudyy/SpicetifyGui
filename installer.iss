@@ -2,13 +2,16 @@
 ;
 ; Built locally:
 ;   dotnet publish MarketplaceInstaller.Gui/MarketplaceInstaller.Gui.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish-single
-;   ISCC.exe /DAppVersion=1.0.0 installer.iss
+;   ISCC.exe /DAppVersion=latest installer.iss
+;
+; Every build ships to the single always-live GitHub release tagged `latest`
+; (asset SpicetifyGui-Setup-latest-win-x64.exe, overwritten with --clobber).
 ;
 ; Installs the single-file build to %LocalAppData%\Programs\SpicetifyGui.
 
 #define MyAppName "SpicetifyGui"
 #ifndef AppVersion
-  #define AppVersion "1.0.0"
+  #define AppVersion "latest"
 #endif
 #define MyAppPublisher "thecloudyy"
 #define MyAppURL "https://github.com/thecloudyy/SpicetifyGui"
@@ -27,7 +30,7 @@ DefaultGroupName={#MyAppName}
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=dist
-OutputBaseFilename={#MyAppName}-Setup-v{#AppVersion}-win-x64
+OutputBaseFilename={#MyAppName}-Setup-{#AppVersion}-win-x64
 SetupIconFile=MarketplaceInstaller.Gui\app.ico
 Compression=lzma2/max
 SolidCompression=yes

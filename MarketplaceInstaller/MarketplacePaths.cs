@@ -2,7 +2,9 @@ namespace MarketplaceInstaller;
 
 public static class MarketplacePaths
 {
-    public const string Version = "1.0.0";
+    /// <summary>The app ships as a single always-live release tagged `latest`
+    /// — there are no versioned tags to compare against.</summary>
+    public const string Version = "Latest";
     public const string UserAgent = "spicetify-marketplace-updater/1.0.0";
 
     public const string Repo = "spicetify/spicetify-marketplace";

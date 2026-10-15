@@ -59,7 +59,7 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<StepItem> Steps { get; } = new();
     public ObservableCollection<FileStatusItem> FileRows { get; } = new();
 
-    public string AppVersion => "v" + MarketplacePaths.Version;
+    public string AppVersion => MarketplacePaths.Version;
     public string InstalledLabel
     {
         get

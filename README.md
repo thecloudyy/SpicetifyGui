@@ -7,9 +7,11 @@ Marketplace release, backs up the current install, applies it with
 
 ## Download
 
-Grab `SpicetifyGui-Setup-vX.Y.Z-win-x64.exe` from
+Grab `SpicetifyGui-Setup-latest-win-x64.exe` from
 [GitHub Releases](https://github.com/thecloudyy/SpicetifyGui/releases/latest)
-and run it. It is a single file.
+and run it. It is a single file. The repo ships one always-live release
+(tagged `latest`) that is overwritten on every build — there are no
+versioned tags.
 
 Requires the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
 
@@ -23,8 +25,8 @@ Requires the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dot
   official Marketplace installer), falling back to the dist branch build.
 - Install / Update / Uninstall with backup + restore on failure.
 - File status card: per-file presence plus release freshness (up to date / update available).
-- Self-update: the App card reinstalls the latest
-  `SpicetifyGui-Setup-*-win-x64.exe` release (SHA-256 verified) and restarts itself.
+- Self-update: the App card reinstalls the `latest` release
+  (SHA-256 verified against the published `.sha256` asset) and restarts itself.
 - Never leaves Spotify running unless it was open before the update.
 
 ## Build from source
@@ -33,24 +35,30 @@ Requires the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dot
 dotnet build MarketplaceInstaller.slnx -c Release
 ```
 
-## Release a new version
+## Release a new build
 
-1. Keep `<Version>` at `1.0.0` in both `.csproj` files and `MarketplacePaths.Version`.
-2. Rebuild, publish the single file, then compile the Inno installer and publish it:
+Everything ships to a single always-live release tagged `latest` — never
+versioned tags. The app's Reinstall pulls that tag and verifies the download
+against the published `.sha256` asset before running it.
+
+1. Keep `<Version>` at `1.0.0` in both `.csproj` files (assembly versions must
+   stay numeric; the visible `MarketplacePaths.Version` is `Latest`).
+2. Create the release once:
+
+```
+gh release create latest --title "Latest" --notes "Latest SpicetifyGui build." --latest
+```
+
+3. Rebuild, publish the single file, compile the Inno installer, hash it, and
+   overwrite the release assets:
 
    The release asset must be the **installer**, not the bare exe — the App card's
    Reinstall runs it with `/SILENT`, which a plain `SpicetifyGui.exe` would ignore.
 
 ```
 dotnet publish MarketplaceInstaller.Gui/MarketplaceInstaller.Gui.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish-single
-ISCC.exe /DAppVersion=1.0.0 installer.iss
-$hash = (Get-FileHash -Algorithm SHA256 dist\SpicetifyGui-Setup-v1.0.0-win-x64.exe).Hash.ToLower()
-"$hash  SpicetifyGui-Setup-v1.0.0-win-x64.exe" | Out-File dist\SpicetifyGui-Setup-v1.0.0-win-x64.exe.sha256 -Encoding ascii
-gh release create v1.0.0 --title "v1.0.0" --notes "..." dist\SpicetifyGui-Setup-v1.0.0-win-x64.exe dist\SpicetifyGui-Setup-v1.0.0-win-x64.exe.sha256
-```
-
-   Republishing the same tag (the app never bumps its own version):
-
-```
-gh release upload v1.0.0 --clobber dist\SpicetifyGui-Setup-v1.0.0-win-x64.exe dist\SpicetifyGui-Setup-v1.0.0-win-x64.exe.sha256
+ISCC.exe /DAppVersion=latest installer.iss
+$hash = (Get-FileHash -Algorithm SHA256 dist\SpicetifyGui-Setup-latest-win-x64.exe).Hash.ToLower()
+"$hash  SpicetifyGui-Setup-latest-win-x64.exe" | Out-File dist\SpicetifyGui-Setup-latest-win-x64.exe.sha256 -Encoding ascii
+gh release upload latest --clobber dist\SpicetifyGui-Setup-latest-win-x64.exe dist\SpicetifyGui-Setup-latest-win-x64.exe.sha256
 ```
