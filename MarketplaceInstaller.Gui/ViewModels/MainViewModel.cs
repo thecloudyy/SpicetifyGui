@@ -25,7 +25,6 @@ public partial class MainViewModel : ObservableObject
     private CancellationTokenSource? _runCts;
     private CancellationTokenSource? _selfUpdateCts;
     private readonly SelfUpdater _selfUpdater = new();
-    private bool _spicetifyOk;
     private string _stepMode = "install";
 
     // Fixed location, auto-detected only — never shown or browsed.
@@ -191,7 +190,8 @@ public partial class MainViewModel : ObservableObject
         }
         else
         {
-            if (t.Contains("apply") || t.Contains("register") || t.Contains("almost done")) s = 3;
+            if (t.Contains("spicetify cli")) s = 0; // CLI bootstrap happens in Prepare
+            else if (t.Contains("apply") || t.Contains("register") || t.Contains("almost done")) s = 3;
             else if (t.Contains("installing") || t.Contains("extract")) s = 2;
             else if (t.Contains("download")) s = 1;
             else s = 0;
@@ -223,7 +223,6 @@ public partial class MainViewModel : ObservableObject
                     lt,
                     cli);
             });
-            _spicetifyOk = ok;
             IsInstalled = present;
             InstalledTag = local != null ? "v" + local : "";
             MarketplaceVersion = latest ?? "";
@@ -233,7 +232,7 @@ public partial class MainViewModel : ObservableObject
             if (!ok)
             {
                 SystemStatus = "Spicetify missing";
-                StatusMessage = "Spicetify not found.";
+                StatusMessage = "Spicetify missing — Install will set it up too.";
             }
             else
             {
@@ -336,14 +335,6 @@ public partial class MainViewModel : ObservableObject
         FileRows.Add(release);
     }
 
-    private bool RequireEnv()
-    {
-        _spicetifyOk = MarketplaceOps.IsSpicetifyInstalled();
-        if (_spicetifyOk) return true;
-        StatusMessage = "Spicetify not found.";
-        return false;
-    }
-
     [RelayCommand(CanExecute = nameof(CanRun))]
     private async Task InstallUninstallAsync()
     {
@@ -357,7 +348,7 @@ public partial class MainViewModel : ObservableObject
         }
         else
         {
-            if (!RequireEnv()) return;
+            // No CLI pre-check here: a missing Spicetify is installed by the flow.
             ResetSteps("install");
             await RunOpAsync((log, bar, ct) =>
                 MarketplaceOps.InstallFlowAsync(Dir, log, bar, ct),
@@ -369,7 +360,6 @@ public partial class MainViewModel : ObservableObject
     private async Task UpdateModAsync()
     {
         if (IsBusy) return;
-        if (!RequireEnv()) return;
         ResetSteps("install");
         await RunOpAsync((log, bar, ct) =>
             MarketplaceOps.UpdateFlowAsync(Dir, log, bar, ct),

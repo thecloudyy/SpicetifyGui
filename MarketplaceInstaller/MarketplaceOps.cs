@@ -21,48 +21,9 @@ public static class MarketplaceOps
         try { log?.Report(msg); } catch { }
     }
 
-    public static bool IsSpicetifyInstalled()
-    {
-        try
-        {
-            var psi = new ProcessStartInfo("spicetify", "-v")
-            {
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-            using var p = Process.Start(psi);
-            if (p == null) return false;
-            p.WaitForExit(8000);
-            return p.ExitCode == 0;
-        }
-        catch
-        {
-            return false;
-        }
-    }
+    public static bool IsSpicetifyInstalled() => SpicetifyCli.IsInstalled();
 
-    public static string SpicetifyVersion()
-    {
-        try
-        {
-            var psi = new ProcessStartInfo("spicetify", "-v")
-            {
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-            using var p = Process.Start(psi);
-            if (p == null) return "unknown";
-            string out_ = p.StandardOutput.ReadToEnd().Trim();
-            p.WaitForExit(8000);
-            return string.IsNullOrWhiteSpace(out_) ? "unknown" : out_;
-        }
-        catch
-        {
-            return "unknown";
-        }
-    }
+    public static string SpicetifyVersion() => SpicetifyCli.Version();
 
     /// <summary>
     /// Presence check. manifest.json has no version field, so a folder
@@ -216,14 +177,26 @@ public static class MarketplaceOps
             }
         }
         extracted ??= Directory.GetDirectories(tmpDir).FirstOrDefault();
-        if (extracted == null)
-            throw new InvalidDataException("Could not find extracted folder.");
 
         Say(log, "Installing files...");
         Directory.CreateDirectory(Path.GetDirectoryName(marketplaceDir) ?? marketplaceDir);
         if (Directory.Exists(marketplaceDir))
             Directory.Delete(marketplaceDir, recursive: true);
-        Directory.Move(extracted, marketplaceDir);
+
+        if (extracted != null)
+        {
+            Directory.Move(extracted, marketplaceDir);
+        }
+        else if (File.Exists(Path.Combine(tmpDir, "manifest.json"))
+            || File.Exists(Path.Combine(tmpDir, "index.js")))
+        {
+            // Zip carried the build at its root — move the files over.
+            Directory.Move(tmpDir, marketplaceDir);
+        }
+        else
+        {
+            throw new InvalidDataException("Could not find extracted folder.");
+        }
     }
 
     public static string? BackupExisting(string marketplaceDir, IProgress<string>? log)
@@ -255,7 +228,7 @@ public static class MarketplaceOps
     public static void UpgradeCli(IProgress<string>? log)
     {
         Say(log, "Updating Spicetify CLI...");
-        var (code, stdout) = Run("spicetify", "upgrade");
+        var (code, stdout) = Run(SpicetifyExe(), "upgrade");
         foreach (string line in stdout.Split('\n'))
         {
             string t = StripAnsi(line).Trim();
@@ -289,13 +262,19 @@ public static class MarketplaceOps
             }
         }
         catch { }
-        Run("spicetify", $"config custom_apps {MarketplacePaths.AppName}");
+        // Same registration the official Marketplace install script performs:
+        // drop any legacy entry, add "marketplace", and make sure the CSS/color
+        // injection the Marketplace UI relies on is on.
+        Run(SpicetifyExe(), "config custom_apps spicetify-marketplace- -q");
+        Run(SpicetifyExe(), $"config custom_apps {MarketplacePaths.AppName}");
+        Run(SpicetifyExe(), "config inject_css 1");
+        Run(SpicetifyExe(), "config replace_colors 1");
     }
 
     public static bool ApplySpicetify(IProgress<string>? log)
     {
         Say(log, "Applying changes to Spotify...");
-        var (code, stdout) = Run("spicetify", "apply");
+        var (code, stdout) = Run(SpicetifyExe(), "apply");
         foreach (string line in stdout.Split('\n'))
         {
             string t = StripAnsi(line).Trim();
@@ -392,6 +371,10 @@ public static class MarketplaceOps
             Say(log, "Spotify left closed — start it yourself when ready.");
     }
 
+    /// <summary>Resolved spicetify executable — a CLI installed during this run
+    /// lives in %LOCALAPPDATA%\spicetify and is not on the process PATH yet.</summary>
+    private static string SpicetifyExe() => SpicetifyCli.FindExecutable() ?? "spicetify";
+
     private static (int code, string stdout) Run(string file, string args)
     {
         try
@@ -424,8 +407,12 @@ public static class MarketplaceOps
 
         if (!IsSpicetifyInstalled())
         {
-            Say(log, "Spicetify CLI not found.");
-            return 2;
+            // Install support: set the CLI up instead of bailing out.
+            if (!await SpicetifyCli.InstallAsync(log, ct) || !IsSpicetifyInstalled())
+            {
+                Say(log, "Spicetify CLI not found.");
+                return 2;
+            }
         }
 
         bool wasRunning = Spotify.IsRunning();
@@ -470,7 +457,21 @@ public static class MarketplaceOps
                 Say(log, "Downloading update... fetching latest build.");
                 try
                 {
-                    await DownloadFileAsync(MarketplacePaths.DistZipUrl, zip, log, progress, ct);
+                    // Official release asset first (same source as the official
+                    // install script), dist-branch build as a fallback.
+                    string url = latestTag != null
+                        ? MarketplacePaths.ReleaseZipUrl(latestTag)
+                        : MarketplacePaths.LatestReleaseZipUrl;
+                    try
+                    {
+                        await DownloadFileAsync(url, zip, log, progress, ct);
+                    }
+                    catch (Exception first) when (url != MarketplacePaths.DistZipUrl)
+                    {
+                        Say(log, "Release download failed: " + first.Message);
+                        Say(log, "Falling back to the dist branch build...");
+                        await DownloadFileAsync(MarketplacePaths.DistZipUrl, zip, log, progress, ct);
+                    }
                 }
                 catch (Exception ex)
                 {

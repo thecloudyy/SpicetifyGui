@@ -1,8 +1,9 @@
 # SpicetifyGui
 
-Spicetify Marketplace updater for Windows. Detects your Spicetify install,
-downloads the latest Marketplace release, backs up the current install,
-applies it with `spicetify apply`, and restarts Spotify if it was open.
+Spicetify Marketplace updater for Windows. Detects your Spicetify install
+(installing the Spicetify CLI for you if it is missing), downloads the latest
+Marketplace release, backs up the current install, applies it with
+`spicetify apply`, and restarts Spotify if it was open.
 
 ## Download
 
@@ -15,6 +16,11 @@ Requires the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dot
 ## Features
 
 - Auto-detects Spicetify and the installed Marketplace version (no folder picking).
+- Installs the Spicetify CLI automatically when it is missing: official install
+  script first (per-user, no admin), winget as fallback — both documented on
+  [spicetify.app](https://spicetify.app/docs/getting-started).
+- Installs the official `marketplace.zip` release asset (same source as the
+  official Marketplace installer), falling back to the dist branch build.
 - Install / Update / Uninstall with backup + restore on failure.
 - File status card: per-file presence plus release freshness (up to date / update available).
 - Self-update: the App card reinstalls the latest

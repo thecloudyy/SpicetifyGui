@@ -21,6 +21,15 @@ public static class MarketplacePaths
     public static string DistZipUrl =>
         $"https://github.com/{Repo}/archive/refs/heads/{Branch}.zip";
 
+    /// <summary>Official release asset for a tag, e.g. v1.0.11 — what the official
+    /// Marketplace install script downloads.</summary>
+    public static string ReleaseZipUrl(string tag) =>
+        $"https://github.com/{ReleasesRepo}/releases/download/v{tag.TrimStart('v', 'V')}/marketplace.zip";
+
+    /// <summary>Same asset via the stable latest-download alias (no tag needed).</summary>
+    public static string LatestReleaseZipUrl =>
+        $"https://github.com/{ReleasesRepo}/releases/latest/download/marketplace.zip";
+
     public static string LatestReleaseApi =>
         $"https://api.github.com/repos/{ReleasesRepo}/releases/latest";
 
